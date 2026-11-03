@@ -11,18 +11,20 @@ import { resolveRecipients } from "@/domain/campaigns";
 import { renderTemplate } from "@/domain/template";
 import { cap, fmtDate, fmtDateTime, relative, todayISO } from "@/lib/format";
 import { BUG_SEVERITY, BUG_STATUS, CAMPAIGN_STATUS, CITY, DEMO_STAGE, PRIORITY, TASK_STATUS } from "@/lib/labels";
-import { requireUser } from "@/lib/session";
+import { MyDay } from "@/components/my-day";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 const OPEN_BUG = ["new", "triaged", "in_progress"] as const;
 type View = "all" | "producto" | "gtm" | "ventas";
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ vista?: string; sinPermiso?: string }> }) {
   const sp = await searchParams;
   const view: View = (["producto", "gtm", "ventas"] as const).includes(sp.vista as "gtm") ? (sp.vista as View) : "all";
   const show = (...v: View[]) => view === "all" || v.includes(view);
 
-  const user = await requireUser();
+  const access = await requireAccess();
+  const { user } = access;
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 86400000);
   const twoWeeksAgo = new Date(now.getTime() - 14 * 86400000);
@@ -90,6 +92,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </form>
         </div>
       </section>
+
+      {sp.sinPermiso === "1" && (
+        <p className="rounded-2xl border border-warn/30 bg-warn-bg px-4 py-2.5 text-sm text-warn">Esa sección no está disponible para tu rol. Si la necesitas, pide acceso a Chris o a Pau.</p>
+      )}
+      <MyDay access={access} />
 
       {/* BLOQUEOS */}
       {(blockers.length > 0 || critical.length > 0) && (

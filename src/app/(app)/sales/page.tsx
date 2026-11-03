@@ -91,7 +91,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
             <Empty title="Sin oportunidades" text="Crea una cuenta y su primera oportunidad para empezar el pipeline." />
           ) : (
             <Kanban
-              minColWidth={210}
+              minColWidth={170}
               columns={Object.entries(DEAL_STAGE).map(([id, v]) => ({ id, label: v.label, accent: STAGE_ACCENT[id] }))}
               onMove={moveDeal}
               items={boardDeals.map((d) => ({
