@@ -260,6 +260,12 @@ async function main() {
   ]);
 
   // ---------- metas (sección 9.1 del brief) ----------
+  // ---------- sugerencias de contenido ----------
+  await db.insert(ops.contentSuggestions).values([
+    { title: "Qué preguntar en la primera sesión con un adolescente", idea: "Carrusel con 5 preguntas de encuadre que Rafa usa en consulta, sin casos reales.", why: "Lo preguntan seguido en las demos con clínicas.", channel: "instagram", authorId: U("Rafa") },
+    { title: "Cómo se ve Ziora en una clínica con 8 terapeutas", idea: "Video corto del flujo de una clínica: agenda, notas y reportes al director.", why: "Dos clínicas en negociación pidieron verlo.", channel: "linkedin", authorId: U("Euridice") },
+  ]);
+
   await db.insert(ops.goals).values([
     { key: "ig_followers", label: "Seguidores Instagram", source: "Meta Insights", current: 182, targets: { d30: [150, 300], d60: [500, 800], d90: [1200, 2000] }, position: 1 },
     { key: "tiktok_followers", label: "Seguidores TikTok", source: "TikTok Analytics", current: 240, targets: { d30: [100, 400], d60: [400, 1200], d90: [800, 2500] }, position: 2 },

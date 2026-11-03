@@ -303,3 +303,45 @@ export const memberRoles = ops.table(
   },
   (t) => [primaryKey({ columns: [t.userId, t.role] })],
 );
+
+// ---------- marketing: revisión de contenido y sugerencias ----------
+// Una pieza se publica solo con la aprobación de cada rol revisor (CEO, director clínico y ventas)
+// más la checklist legal. La última decisión de cada persona reemplaza a la anterior.
+export const reviewDecisionEnum = ops.enum("review_decision", ["approved", "changes_requested"]);
+
+export const contentReviews = ops.table(
+  "content_reviews",
+  {
+    id: id(),
+    pieceId: uuid("piece_id").notNull().references(() => contentPieces.id, { onDelete: "cascade" }),
+    reviewerId: uuid("reviewer_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    decision: reviewDecisionEnum("decision").notNull(),
+    comment: text("comment"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("content_reviews_piece_reviewer_unique").on(t.pieceId, t.reviewerId)],
+);
+
+// Sugerencias de contenido de cualquier persona del equipo. No son tareas: marketing las revisa
+// y, si las acepta, se crean la pieza en el calendario y la tarea de publicación.
+export const suggestionStatusEnum = ops.enum("suggestion_status", ["new", "accepted", "rejected"]);
+
+export const contentSuggestions = ops.table(
+  "content_suggestions",
+  {
+    id: id(),
+    title: text("title").notNull(),
+    idea: text("idea").notNull(),
+    why: text("why"),
+    channel: contentChannelEnum("channel"),
+    referenceUrl: text("reference_url"),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    status: suggestionStatusEnum("status").notNull().default("new"),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decisionNote: text("decision_note"),
+    pieceId: uuid("piece_id").references(() => contentPieces.id, { onDelete: "set null" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (t) => [index("content_suggestions_status_idx").on(t.status)],
+);

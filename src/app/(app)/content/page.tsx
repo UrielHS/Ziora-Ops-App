@@ -3,6 +3,7 @@ import { and, asc, gte, isNull, lte } from "drizzle-orm";
 import { NewPieceButton, PieceChip, pillarColor } from "@/components/content";
 import { btn, Card, cn, PageHeader, PanelHeader, Progress } from "@/components/ui";
 import { db } from "@/db";
+import { reviewsForPieces } from "@/db/content-review";
 import { listUsers } from "@/db/queries";
 import { contentPieces } from "@/db/schema";
 import { todayISO } from "@/lib/format";
@@ -32,6 +33,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
     db.select().from(contentPieces).where(and(gte(contentPieces.publishOn, cells[0]), lte(contentPieces.publishOn, cells[41]))).orderBy(asc(contentPieces.publishOn)),
     db.select().from(contentPieces).where(isNull(contentPieces.publishOn)).orderBy(asc(contentPieces.createdAt)),
   ]);
+  const reviews = await reviewsForPieces(db, [...pieces, ...undated].filter((p) => p.status === "legal_review").map((p) => p.id));
   const inMonth = pieces.filter((p) => p.publishOn!.slice(0, 7) === `${y}-${String(m).padStart(2, "0")}` && p.status !== "discarded");
   const edu = inMonth.filter((p) => ["ia_psicoterapia", "estudios", "roi", "psicoterapia_moderna"].includes(p.pillar)).length;
   const memes = inMonth.filter((p) => p.pillar === "memes").length;
@@ -60,7 +62,11 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader eyebrow="Marketing" title="Calendario de contenido" subtitle="Instagram, TikTok y grupos de Facebook · plan de 90 días" actions={<NewPieceButton users={users} defaultOpen={sp.nuevo === "1"} />} />
+      <PageHeader eyebrow="Marketing" title="Calendario de contenido" subtitle="Instagram, TikTok y grupos de Facebook · plan de 90 días" actions={<>
+        <Link href="/content/review" className={btn("ghost")}>Revisión</Link>
+        <Link href="/content/suggestions" className={btn("ghost")}>Sugerencias</Link>
+        <NewPieceButton users={users} defaultOpen={sp.nuevo === "1"} />
+      </>} />
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Card className="p-5">
@@ -111,7 +117,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
               return (
                 <div key={date} className={cn("min-h-28 border-line p-1.5", i % 7 !== 6 && "border-r", i < 35 && "border-b", out && "bg-[#FAF9F5]")}>
                   <p className={cn("mb-1 text-right text-[11px] font-semibold", date === today ? "ml-auto w-fit rounded-full bg-forest px-1.5 text-white" : out ? "text-faint/60" : "text-faint")}>{Number(date.slice(8))}</p>
-                  <div className="flex flex-col gap-1">{dayPieces.map((p) => <PieceChip key={p.id} p={p} users={users} />)}</div>
+                  <div className="flex flex-col gap-1">{dayPieces.map((p) => <PieceChip key={p.id} p={p} users={users} review={reviews.get(p.id)} />)}</div>
                 </div>
               );
             })}
@@ -123,7 +129,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
         <PanelHeader title="Banco de ideas" subtitle="Piezas sin fecha. Asígnales una para que entren al calendario." />
         <div className="grid gap-2 p-5 sm:grid-cols-2 lg:grid-cols-3">
           {undated.length === 0 && <p className="text-sm text-muted">Sin ideas pendientes.</p>}
-          {undated.map((p) => <PieceChip key={p.id} p={p} users={users} full />)}
+          {undated.map((p) => <PieceChip key={p.id} p={p} users={users} full review={reviews.get(p.id)} />)}
         </div>
       </Card>
     </div>

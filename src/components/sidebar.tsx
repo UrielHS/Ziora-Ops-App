@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bug, CalendarDays, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Users, Video,
+  Bug, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Users, Video,
 } from "lucide-react";
 import { Avatar, cn } from "@/components/ui";
 import { can, type Access, type Permission } from "@/lib/permissions";
@@ -28,6 +28,8 @@ export function Sidebar({
     ] },
     { label: "Marketing", items: [
       { href: "/content", label: "Contenido", icon: Megaphone },
+      { href: "/content/review", label: "Revisión", icon: ClipboardCheck, count: counts.reviews },
+      { href: "/content/suggestions", label: "Sugerencias", icon: Lightbulb, count: counts.suggestions },
       { href: "/campaigns", label: "Campañas", icon: Mail },
       { href: "/templates", label: "Plantillas", icon: FileCode2 },
       { href: "/events", label: "Eventos", icon: CalendarDays, shared: true },
@@ -45,7 +47,10 @@ export function Sidebar({
   const groups = all
     .map((g) => ({ ...g, items: g.items.filter((i) => !i.perm || can(access, i.perm)) }))
     .filter((g) => g.items.length > 0);
-  const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
+  // La ruta más específica gana: en /content/review se marca "Revisión", no "Contenido".
+  const hrefs = all.flatMap((g) => g.items.map((i) => i.href));
+  const isActive = (href: string) =>
+    (path === href || path.startsWith(`${href}/`)) && !hrefs.some((h) => h.length > href.length && (path === h || path.startsWith(`${h}/`)));
 
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto px-3 py-5 md:flex">

@@ -79,7 +79,7 @@ export const CONTENT_CHANNEL = {
 export const CONTENT_STATUS = {
   idea: { label: "Idea", tone: "gray" },
   draft: { label: "Borrador", tone: "gray" },
-  legal_review: { label: "Revisión", tone: "amber" },
+  legal_review: { label: "En revisión", tone: "amber" },
   approved: { label: "Aprobado", tone: "blue" },
   scheduled: { label: "Programado", tone: "lilac" },
   published: { label: "Publicado", tone: "green" },
@@ -127,4 +127,10 @@ export const OPS_ROLE = {
   marketing: { label: "Marketing", tone: "lilac" },
   operations: { label: "Operaciones", tone: "gray" },
   dev_qa: { label: "Dev / QA", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const SUGGESTION_STATUS = {
+  new: { label: "Nueva", tone: "blue" },
+  accepted: { label: "Aceptada", tone: "green" },
+  rejected: { label: "Descartada", tone: "gray" },
 } as const satisfies Record<string, { label: string; tone: Tone }>;

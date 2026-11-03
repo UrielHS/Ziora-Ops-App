@@ -15,6 +15,13 @@
       "when": 1793726498658,
       "tag": "0001_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793726847027,
+      "tag": "0002_content_review",
+      "breakpoints": true
     }
   ]
 }
