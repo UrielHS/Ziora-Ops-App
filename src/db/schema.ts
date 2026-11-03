@@ -393,3 +393,79 @@ export const tickets = ops.table(
     uniqueIndex("tickets_origin_external_unique").on(t.origin, t.externalId).where(sql`${t.externalId} is not null`),
   ],
 );
+
+// ---------- ventas B2B: cuentas, oportunidades y contratos ----------
+// ziora_ops solo puede LEER public.organizations, así que las cuentas viven aquí.
+// organizationId enlaza (sin FK) con la organización de Event Ops cuando existe.
+export const accountTypeEnum = ops.enum("account_type", ["clinic", "university", "hospital", "institution", "other"]);
+export const dealStageEnum = ops.enum("deal_stage", ["prospect", "meeting", "proposal", "negotiation", "won", "lost"]);
+export const contractStatusEnum = ops.enum("contract_status", ["draft", "sent", "signed", "active", "expired", "cancelled"]);
+export const billingPeriodEnum = ops.enum("billing_period", ["monthly", "annual", "one_time"]);
+
+export const accounts = ops.table("accounts", {
+  id: id(),
+  name: text("name").notNull(),
+  type: accountTypeEnum("type").notNull().default("clinic"),
+  city: text("city"),
+  website: text("website"),
+  organizationId: uuid("organization_id"),
+  ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  therapistsCount: integer("therapists_count"), // tamaño: cuántos terapeutas tiene
+  notes: text("notes"),
+  ...timestamps(),
+});
+
+export const accountContacts = ops.table(
+  "account_contacts",
+  {
+    accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    contactId: uuid("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+    title: text("title"), // Directora, Coordinador clínico…
+    decisionMaker: boolean("decision_maker").notNull().default(false),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.contactId] })],
+);
+
+export const deals = ops.table(
+  "deals",
+  {
+    id: id(),
+    accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    stage: dealStageEnum("stage").notNull().default("prospect"),
+    seats: integer("seats"), // licencias
+    amountMxn: integer("amount_mxn"), // valor estimado del contrato
+    billingPeriod: billingPeriodEnum("billing_period").notNull().default("monthly"),
+    expectedCloseOn: date("expected_close_on"),
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    lostReason: text("lost_reason"),
+    stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    notes: text("notes"),
+    ...timestamps(),
+  },
+  (t) => [index("deals_stage_idx").on(t.stage)],
+);
+
+export const contracts = ops.table(
+  "contracts",
+  {
+    id: id(),
+    number: serial("number").notNull().unique(), // CTR-<number>
+    accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    seats: integer("seats"),
+    pricePerSeatMxn: integer("price_per_seat_mxn"),
+    amountMxn: integer("amount_mxn").notNull().default(0), // por periodo de cobro
+    billingPeriod: billingPeriodEnum("billing_period").notNull().default("monthly"),
+    startsOn: date("starts_on"),
+    endsOn: date("ends_on"),
+    autoRenew: boolean("auto_renew").notNull().default(false),
+    status: contractStatusEnum("status").notNull().default("draft"),
+    signedOn: date("signed_on"),
+    documentUrl: text("document_url"),
+    notes: text("notes"),
+    ...timestamps(),
+  },
+  (t) => [index("contracts_status_idx").on(t.status), index("contracts_ends_on_idx").on(t.endsOn)],
+);

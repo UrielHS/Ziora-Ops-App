@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </summary>
             <div className="absolute right-0 z-30 mt-2 w-48 overflow-hidden rounded-2xl border border-line bg-white py-1 shadow-lg">
               {[
-                ["/tasks?nuevo=1", "Tarea"], ["/demos?nuevo=1", "Demo"], ["/tickets?nuevo=1", "Ticket (cambio o idea)"], ["/bugs?nuevo=1", "Bug"],
+                ["/tasks?nuevo=1", "Tarea"], ["/demos?nuevo=1", "Demo"], ["/sales?nueva=1", "Oportunidad B2B"], ["/tickets?nuevo=1", "Ticket (cambio o idea)"], ["/bugs?nuevo=1", "Bug"],
                 ["/contacts?nuevo=1", "Contacto"], ["/content?nuevo=1", "Pieza de contenido"], ["/content/suggestions?nueva=1", "Sugerencia de contenido"], ["/campaigns/new", "Campaña"],
               ].map(([href, label]) => (
                 <Link key={href} href={href} className="block px-4 py-2 text-sm hover:bg-mint">{label}</Link>

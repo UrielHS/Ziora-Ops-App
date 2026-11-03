@@ -260,6 +260,21 @@ async function main() {
   ]);
 
   // ---------- metas (sección 9.1 del brief) ----------
+  // ---------- ventas B2B ----------
+  const [serena, unam, mente] = await db.insert(ops.accounts).values([
+    { name: "Clínica Serena (ficticia)", type: "clinic", city: "Guadalajara", therapistsCount: 8, ownerId: U("Euridice") },
+    { name: "Facultad de Psicología (ficticia)", type: "university", city: "CDMX", therapistsCount: 40, ownerId: U("Euridice") },
+    { name: "Centro Mente Clara (ficticio)", type: "clinic", city: "Monterrey", therapistsCount: 5, ownerId: U("Euridice") },
+  ]).returning();
+  await db.insert(ops.deals).values([
+    { accountId: serena.id, name: "8 licencias Pro", stage: "negotiation", seats: 8, amountMxn: 7200, billingPeriod: "monthly", expectedCloseOn: dateISO(10), ownerId: U("Euridice") },
+    { accountId: unam.id, name: "Piloto con supervisores", stage: "proposal", seats: 15, amountMxn: 120000, billingPeriod: "annual", expectedCloseOn: dateISO(30), ownerId: U("Euridice"), stageChangedAt: daysAgo(20) },
+    { accountId: mente.id, name: "5 licencias", stage: "won", seats: 5, amountMxn: 4500, billingPeriod: "monthly", ownerId: U("Euridice") },
+  ]);
+  await db.insert(ops.contracts).values([
+    { accountId: mente.id, title: "Licencias Ziora 2026", seats: 5, pricePerSeatMxn: 900, amountMxn: 4500, billingPeriod: "monthly", startsOn: dateISO(-300), endsOn: dateISO(25), status: "active", signedOn: dateISO(-300) },
+  ]);
+
   // ---------- sugerencias de contenido ----------
   await db.insert(ops.contentSuggestions).values([
     { title: "Qué preguntar en la primera sesión con un adolescente", idea: "Carrusel con 5 preguntas de encuadre que Rafa usa en consulta, sin casos reales.", why: "Lo preguntan seguido en las demos con clínicas.", channel: "instagram", authorId: U("Rafa") },

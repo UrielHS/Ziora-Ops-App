@@ -160,3 +160,27 @@ export const VIABILITY = {
 export const EFFORT = { s: "S · horas", m: "M · 1–2 días", l: "L · semana", xl: "XL · varias semanas" } as const;
 
 export const TICKET_ORIGIN = { team: "Equipo", ziora_app_help: "App · Ayuda y sugerencias" } as const;
+
+export const ACCOUNT_TYPE = {
+  clinic: "Clínica", university: "Universidad", hospital: "Hospital", institution: "Institución", other: "Otro",
+} as const;
+
+export const DEAL_STAGE = {
+  prospect: { label: "Prospecto", tone: "gray" },
+  meeting: { label: "Reunión", tone: "blue" },
+  proposal: { label: "Propuesta", tone: "lilac" },
+  negotiation: { label: "Negociación", tone: "amber" },
+  won: { label: "Ganada", tone: "green" },
+  lost: { label: "Perdida", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const CONTRACT_STATUS = {
+  draft: { label: "Borrador", tone: "gray" },
+  sent: { label: "Enviado", tone: "blue" },
+  signed: { label: "Firmado", tone: "lilac" },
+  active: { label: "Activo", tone: "green" },
+  expired: { label: "Vencido", tone: "red" },
+  cancelled: { label: "Cancelado", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const BILLING_PERIOD = { monthly: "Mensual", annual: "Anual", one_time: "Pago único" } as const;
