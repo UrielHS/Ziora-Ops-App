@@ -21,3 +21,16 @@ describe("unsubscribe token", () => {
     expect(readUnsubscribeToken("k", "abc-123.xxxx")).toBeNull();
   });
 });
+
+describe("encryptSecret", () => {
+  it("cifra y descifra; detecta manipulación", async () => {
+    const { encryptSecret, decryptSecret } = await import("./crypto");
+    process.env.SOCIAL_TOKEN_KEY = Buffer.alloc(32, 7).toString("base64");
+    const enc = encryptSecret("EAAB-token-secreto");
+    expect(enc).not.toContain("EAAB");
+    expect(decryptSecret(enc)).toBe("EAAB-token-secreto");
+    const parts = enc.split(".");
+    parts[3] = Buffer.from("otro").toString("base64");
+    expect(() => decryptSecret(parts.join("."))).toThrow();
+  });
+});

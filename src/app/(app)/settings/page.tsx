@@ -47,6 +47,7 @@ export default async function SettingsPage() {
       detail: process.env.ZIORA_APP_SNAPSHOT_URL ? "opsSnapshot cada hora · solo conteos de pacientes" : "Falta desplegar opsSnapshot (docs/PUENTE-ZIORA-APP.md)",
       hook: `${app}/api/jobs/sync-ziora-users`,
     },
+    { name: "Redes y anuncios (Meta)", ok: !!process.env.SOCIAL_TOKEN_KEY, detail: process.env.SOCIAL_TOKEN_KEY ? "Tokens por cuenta en Redes sociales · cada mañana" : "Falta SOCIAL_TOKEN_KEY (docs/REDES-Y-ANUNCIOS.md)", hook: `${app}/api/jobs/sync-social` },
     { name: "Ayuda y sugerencias de la app", ok: !!process.env.ZIORA_APP_BRIDGE_SECRET, detail: "Trigger opsHelpRequest → tickets; firma X-Ops-Signature", hook: `${app}/api/webhooks/ziora-help` },
   ];
 

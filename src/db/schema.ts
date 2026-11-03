@@ -550,3 +550,93 @@ export const followups = ops.table(
     uniqueIndex("followups_auto_unique").on(t.appUserUid, t.reason).where(sql`${t.status} = 'pending' and ${t.reason} <> 'manual'`),
   ],
 );
+
+// ---------- marketing: redes sociales y campañas pagadas ----------
+// Se llenan con /api/jobs/sync-social (API de Meta) o con importación CSV (TikTok, LinkedIn,
+// agregadores como Windsor.ai o Supermetrics). Montos en centavos de MXN para no perder precisión.
+export const socialPlatformEnum = ops.enum("social_platform", ["instagram", "facebook", "tiktok", "linkedin"]);
+
+export const socialAccounts = ops.table(
+  "social_accounts",
+  {
+    id: id(),
+    platform: socialPlatformEnum("platform").notNull(),
+    handle: text("handle").notNull(), // @ziora.mx
+    externalId: text("external_id"), // id de la cuenta en la plataforma (IG user id, page id…)
+    adAccountId: text("ad_account_id"), // act_123… para campañas
+    tokenEncrypted: text("token_encrypted"), // AES-256-GCM con SOCIAL_TOKEN_KEY; nunca se muestra
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("social_accounts_platform_handle_unique").on(t.platform, t.handle)],
+);
+
+export const socialDaily = ops.table(
+  "social_daily",
+  {
+    accountId: uuid("account_id").notNull().references(() => socialAccounts.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    followers: integer("followers"),
+    reach: integer("reach"),
+    impressions: integer("impressions"),
+    engagements: integer("engagements"),
+    profileViews: integer("profile_views"),
+    linkClicks: integer("link_clicks"),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.day] })],
+);
+
+export const socialPosts = ops.table(
+  "social_posts",
+  {
+    id: id(),
+    accountId: uuid("account_id").notNull().references(() => socialAccounts.id, { onDelete: "cascade" }),
+    externalId: text("external_id").notNull(),
+    url: text("url"),
+    caption: text("caption"),
+    mediaType: text("media_type"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    reach: integer("reach"),
+    views: integer("views"),
+    likes: integer("likes"),
+    comments: integer("comments"),
+    shares: integer("shares"),
+    saves: integer("saves"),
+    contentPieceId: uuid("content_piece_id").references(() => contentPieces.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("social_posts_account_external_unique").on(t.accountId, t.externalId)],
+);
+
+export const adCampaigns = ops.table(
+  "ad_campaigns",
+  {
+    id: id(),
+    platform: socialPlatformEnum("platform").notNull(),
+    externalId: text("external_id").notNull(),
+    accountId: uuid("account_id").references(() => socialAccounts.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    objective: text("objective"),
+    status: text("status"),
+    // Valor de utm_campaign con el que llegan las demos de esta campaña (atribución real).
+    utmCampaign: text("utm_campaign"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("ad_campaigns_platform_external_unique").on(t.platform, t.externalId)],
+);
+
+export const adDaily = ops.table(
+  "ad_daily",
+  {
+    campaignId: uuid("campaign_id").notNull().references(() => adCampaigns.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    spendCents: integer("spend_cents").notNull().default(0),
+    impressions: integer("impressions").notNull().default(0),
+    clicks: integer("clicks").notNull().default(0),
+    leads: integer("leads").notNull().default(0), // lo que reporta la plataforma
+    conversions: integer("conversions").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.day] })],
+);

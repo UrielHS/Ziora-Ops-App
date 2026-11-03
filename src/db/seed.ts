@@ -164,7 +164,7 @@ async function main() {
       ownerId: i % 3 === 0 ? U("Rafa") : i % 3 === 1 ? U("Uriel") : U("Chris"),
       lostReason: stage === "lost" ? "Ya usa otra herramienta" : null,
       notes: stage === "done" ? "Le interesó el PDF NOM-004 y las escalas. Pidió precio anual." : null,
-      utm: (i % 3 === 0 ? { utm_source: "instagram", utm_medium: "organic", utm_campaign: "pilar_roi" } : {}) as Record<string, string>,
+      utm: (i % 3 === 0 ? { utm_source: "instagram", utm_medium: "organic", utm_campaign: "pilar_roi" } : i % 4 === 1 ? { utm_source: "instagram", utm_medium: "paid", utm_campaign: "demo-psicologos-gdl" } : {}) as Record<string, string>,
       source: i % 5 === 4 ? "manual" : "ziora-copilot.com/demo",
     };
   });
@@ -274,6 +274,41 @@ async function main() {
   await db.insert(ops.contracts).values([
     { accountId: mente.id, title: "Licencias Ziora 2026", seats: 5, pricePerSeatMxn: 900, amountMxn: 4500, billingPeriod: "monthly", startsOn: dateISO(-300), endsOn: dateISO(25), status: "active", signedOn: dateISO(-300) },
   ]);
+
+  // ---------- precios de planes (MRR estimado) ----------
+  await db.insert(ops.planPrices).values([
+    { plan: "free", label: "Gratis", priceMxn: 0, paying: false },
+    { plan: "pro", label: "Pro", priceMxn: 590 },
+    { plan: "pro_anual", label: "Pro anual", priceMxn: 5900, billingPeriod: "annual" },
+    { plan: "clinic", label: "Clínica", priceMxn: 2900 },
+  ]).onConflictDoNothing();
+
+  // ---------- redes y anuncios (cifras ficticias, 60 días) ----------
+  const nets = await db.insert(ops.socialAccounts).values([
+    { platform: "instagram", handle: "@ziora.mx", lastSyncAt: new Date() },
+    { platform: "facebook", handle: "Ziora", lastSyncAt: new Date() },
+    { platform: "tiktok", handle: "@ziora.mx", lastSyncAt: new Date() },
+    { platform: "linkedin", handle: "Ziora Copilot", lastSyncAt: new Date() },
+  ]).returning();
+  const base = { instagram: [1200, 9, 2600], facebook: [800, 2, 900], tiktok: [450, 14, 5200], linkedin: [300, 3, 700] } as const;
+  const socialRows = nets.flatMap((a) => Array.from({ length: 60 }, (_, i) => {
+    const [f0, growth, reach] = base[a.platform];
+    const wave = 1 + 0.35 * Math.sin(i / 3) + (i % 7 === 2 ? 0.6 : 0);
+    return {
+      accountId: a.id, day: dateISO(i - 59), followers: Math.round(f0 + growth * i + (i % 5)),
+      reach: Math.round(reach * wave), engagements: Math.round(reach * wave * 0.06), profileViews: Math.round(reach * 0.02 * wave),
+    };
+  }));
+  await db.insert(ops.socialDaily).values(socialRows);
+  const camps = await db.insert(ops.adCampaigns).values([
+    { platform: "instagram", externalId: "seed-c1", accountId: nets[0].id, name: "Demo psicólogos GDL", objective: "OUTCOME_LEADS", status: "ACTIVE", utmCampaign: "demo-psicologos-gdl" },
+    { platform: "instagram", externalId: "seed-c2", accountId: nets[0].id, name: "Retargeting visitantes", objective: "OUTCOME_TRAFFIC", status: "ACTIVE" },
+    { platform: "tiktok", externalId: "seed-c3", accountId: nets[2].id, name: "Memes de notas", objective: "REACH", status: "PAUSED" },
+  ]).returning();
+  await db.insert(ops.adDaily).values(camps.flatMap((c, k) => Array.from({ length: 30 }, (_, i) => ({
+    campaignId: c.id, day: dateISO(i - 29), spendCents: (k === 2 && i > 20 ? 0 : 1) * (18000 + ((i * 37 + k * 11) % 9) * 2500),
+    impressions: 6000 + ((i * 13) % 7) * 900, clicks: 60 + ((i * 7 + k) % 9) * 8, leads: k === 2 ? (i % 4 === 0 ? 1 : 0) : 1 + ((i + k) % 4),
+  }))));
 
   // ---------- sugerencias de contenido ----------
   await db.insert(ops.contentSuggestions).values([

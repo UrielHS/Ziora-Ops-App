@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2, Bug, HeartPulse, PhoneCall, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Ticket, Users, Video,
+  BarChart3, Building2, Bug, HeartPulse, PhoneCall, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Target, Ticket, Users, Video,
 } from "lucide-react";
 import { Avatar, cn } from "@/components/ui";
 import { can, type Access, type Permission } from "@/lib/permissions";
@@ -35,7 +35,9 @@ export function Sidebar({
       { href: "/content", label: "Contenido", icon: Megaphone },
       { href: "/content/review", label: "Revisión", icon: ClipboardCheck, count: counts.reviews },
       { href: "/content/suggestions", label: "Sugerencias", icon: Lightbulb, count: counts.suggestions },
-      { href: "/campaigns", label: "Campañas", icon: Mail },
+      { href: "/social", label: "Redes sociales", icon: BarChart3, perm: "analytics.view" },
+      { href: "/ads", label: "Anuncios", icon: Target, perm: "analytics.view" },
+      { href: "/campaigns", label: "Correo masivo", icon: Mail },
       { href: "/templates", label: "Plantillas", icon: FileCode2 },
       { href: "/events", label: "Eventos", icon: CalendarDays, shared: true },
     ] },

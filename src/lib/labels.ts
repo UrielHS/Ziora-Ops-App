@@ -196,3 +196,5 @@ export const HEALTH = {
 export const FOLLOWUP_REASON: Record<string, string> = {
   manual: "Agendado", paying_inactive: "Sugerido: pago sin actividad", trial_ending: "Sugerido: trial por vencer",
 };
+
+export const SOCIAL_PLATFORM = { instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", linkedin: "LinkedIn" } as const;
