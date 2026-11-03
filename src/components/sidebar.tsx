@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bug, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Users, Video,
+  Bug, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Ticket, Users, Video,
 } from "lucide-react";
 import { Avatar, cn } from "@/components/ui";
 import { can, type Access, type Permission } from "@/lib/permissions";
@@ -35,6 +35,7 @@ export function Sidebar({
       { href: "/events", label: "Eventos", icon: CalendarDays, shared: true },
     ] },
     { label: "Producto", items: [
+      { href: "/tickets", label: "Tickets", icon: Ticket, count: counts.tickets },
       { href: "/bugs", label: "QA y bugs", icon: Bug, count: counts.bugs },
       { href: "/pull-requests", label: "Pull requests", icon: GitPullRequest, count: counts.prs },
     ] },

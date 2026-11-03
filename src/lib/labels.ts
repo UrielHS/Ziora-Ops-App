@@ -134,3 +134,29 @@ export const SUGGESTION_STATUS = {
   accepted: { label: "Aceptada", tone: "green" },
   rejected: { label: "Descartada", tone: "gray" },
 } as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const TICKET_KIND = {
+  bug: { label: "Algo no funciona", tone: "red" },
+  change: { label: "Cambio", tone: "blue" },
+  feature: { label: "Idea nueva", tone: "lilac" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const TICKET_STATUS = {
+  new: { label: "Nuevo", tone: "blue" },
+  evaluating: { label: "Evaluando", tone: "amber" },
+  planned: { label: "Planeado", tone: "lilac" },
+  in_progress: { label: "En curso", tone: "blue" },
+  done: { label: "Listo", tone: "green" },
+  rejected: { label: "No se hará", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const VIABILITY = {
+  pending: { label: "Sin evaluar", tone: "gray" },
+  viable: { label: "Viable", tone: "green" },
+  not_viable: { label: "No viable", tone: "red" },
+  needs_info: { label: "Falta información", tone: "amber" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const EFFORT = { s: "S · horas", m: "M · 1–2 días", l: "L · semana", xl: "XL · varias semanas" } as const;
+
+export const TICKET_ORIGIN = { team: "Equipo", ziora_app_help: "App · Ayuda y sugerencias" } as const;

@@ -345,3 +345,51 @@ export const contentSuggestions = ops.table(
   },
   (t) => [index("content_suggestions_status_idx").on(t.status)],
 );
+
+// ---------- producto: tickets (cambios, mejoras y errores) en formato historia de usuario ----------
+// Los levanta el equipo (director clínico, ventas…) o llegan de "Ayuda y sugerencias" de la app.
+// Dev/QA los evalúa (impacto, esfuerzo, viabilidad) y, si se planean, se crea la tarea.
+export const ticketKindEnum = ops.enum("ticket_kind", ["bug", "change", "feature"]);
+export const ticketOriginEnum = ops.enum("ticket_origin", ["team", "ziora_app_help"]);
+export const ticketStatusEnum = ops.enum("ticket_status", ["new", "evaluating", "planned", "in_progress", "done", "rejected"]);
+export const viabilityEnum = ops.enum("viability", ["pending", "viable", "not_viable", "needs_info"]);
+export const effortEnum = ops.enum("effort", ["s", "m", "l", "xl"]);
+
+export const tickets = ops.table(
+  "tickets",
+  {
+    id: id(),
+    number: serial("number").notNull().unique(), // TKT-<number>
+    kind: ticketKindEnum("kind").notNull().default("change"),
+    origin: ticketOriginEnum("origin").notNull().default("team"),
+    title: text("title").notNull(),
+    // Historia de usuario: Como <asA>, quiero <iWant>, para <soThat>.
+    asA: text("as_a"),
+    iWant: text("i_want"),
+    soThat: text("so_that"),
+    // "Sabremos que está listo cuando…": un criterio por elemento.
+    acceptanceCriteria: text("acceptance_criteria").array().notNull().default(sql`'{}'::text[]`),
+    // Texto original (mensaje del usuario de la app o contexto libre del equipo).
+    context: text("context"),
+    area: text("area"),
+    category: text("category"), // categoría que eligió el usuario en la app
+    impact: integer("impact"), // 1 a 5
+    effort: effortEnum("effort"),
+    viability: viabilityEnum("viability").notNull().default("pending"),
+    decisionNote: text("decision_note"),
+    status: ticketStatusEnum("status").notNull().default("new"),
+    reporterId: uuid("reporter_id").references(() => users.id, { onDelete: "set null" }),
+    reporterEmail: text("reporter_email"), // terapeuta que escribió desde la app
+    assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    externalId: text("external_id"), // id del documento en Firestore
+    appVersion: text("app_version"),
+    pageUrl: text("page_url"),
+    bugId: uuid("bug_id").references(() => bugs.id, { onDelete: "set null" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (t) => [
+    index("tickets_status_idx").on(t.status),
+    uniqueIndex("tickets_origin_external_unique").on(t.origin, t.externalId).where(sql`${t.externalId} is not null`),
+  ],
+);
