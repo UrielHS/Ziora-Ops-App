@@ -3,8 +3,11 @@ import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const enabled = !!process.env.DATABASE_URL && process.env.RUN_DB_TESTS === "1";
+// Sin base de datos ni siquiera se ejecuta el bloque (sus imports necesitan DATABASE_URL).
+const describeDb = (name: string, fn: () => Promise<void>) =>
+  enabled ? describe(name, fn) : describe.skip(name, () => it.skip("necesita RUN_DB_TESTS=1 y DATABASE_URL", () => {}));
 
-describe.runIf(enabled)("flujo de contenido", async () => {
+describeDb("flujo de contenido", async () => {
   const { db } = await import("@/db");
   const { contentPieces, contentSuggestions, memberRoles, tasks } = await import("@/db/schema");
   const { users } = await import("@/db/shared");
