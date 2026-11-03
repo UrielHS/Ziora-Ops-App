@@ -184,3 +184,15 @@ export const CONTRACT_STATUS = {
 } as const satisfies Record<string, { label: string; tone: Tone }>;
 
 export const BILLING_PERIOD = { monthly: "Mensual", annual: "Anual", one_time: "Pago único" } as const;
+
+export const FOLLOWUP_CHANNEL = { call: "Llamada", whatsapp: "WhatsApp", email: "Correo", video: "Videollamada", in_person: "En persona" } as const;
+
+export const HEALTH = {
+  green: { label: "Bien", tone: "green" },
+  yellow: { label: "Atención", tone: "amber" },
+  red: { label: "En riesgo", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const FOLLOWUP_REASON: Record<string, string> = {
+  manual: "Agendado", paying_inactive: "Sugerido: pago sin actividad", trial_ending: "Sugerido: trial por vencer",
+};

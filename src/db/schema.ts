@@ -469,3 +469,84 @@ export const contracts = ops.table(
   },
   (t) => [index("contracts_status_idx").on(t.status), index("contracts_ends_on_idx").on(t.endsOn)],
 );
+
+// ---------- Ziora Copilot (Firebase): usuarios, planes y pacientes ----------
+// Copia de solo lectura que llena /api/jobs/sync-ziora-users. Por privacidad, de los pacientes
+// SOLO se guarda el conteo: nunca nombres, notas ni ningún dato clínico.
+export const appUsers = ops.table(
+  "app_users",
+  {
+    uid: text("uid").primaryKey(), // uid de Firebase Auth
+    email: text("email").notNull(),
+    name: text("name"),
+    plan: text("plan").notNull(), // tal cual lo guarda la app: free, pro, clinic…
+    status: text("status").notNull(), // active, trialing, past_due, cancelled…
+    signedUpAt: timestamp("signed_up_at", { withTimezone: true }),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
+    patientCount: integer("patient_count").notNull().default(0),
+    sessionsLast30d: integer("sessions_last_30d").notNull().default(0),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }), // si pertenece a una clínica cliente
+    firstSyncedAt: timestamp("first_synced_at", { withTimezone: true }).notNull().defaultNow(),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+    removedAt: timestamp("removed_at", { withTimezone: true }), // ya no viene en el snapshot (cuenta borrada)
+  },
+  (t) => [index("app_users_plan_idx").on(t.plan), uniqueIndex("app_users_email_unique").on(t.email)],
+);
+
+// Foto diaria agregada por plan para ver tendencias (sin datos por persona).
+export const appUserDaily = ops.table(
+  "app_user_daily",
+  {
+    day: date("day").notNull(),
+    plan: text("plan").notNull(),
+    users: integer("users").notNull(),
+    active: integer("active").notNull(),
+    paying: integer("paying").notNull(),
+    patients: integer("patients").notNull(),
+    estimatedMrrMxn: integer("estimated_mrr_mxn").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.plan] })],
+);
+
+// Precio de cada plan para el MRR estimado, mientras se conecta la fuente real de pagos.
+export const planPrices = ops.table("plan_prices", {
+  plan: text("plan").primaryKey(),
+  label: text("label").notNull(),
+  priceMxn: integer("price_mxn").notNull().default(0),
+  billingPeriod: billingPeriodEnum("billing_period").notNull().default("monthly"),
+  paying: boolean("paying").notNull().default(true), // free/trial = false
+  ...timestamps(),
+});
+
+// ---------- seguimiento 1:1 (director clínico, ventas) ----------
+// Una fila = un seguimiento agendado; al completarlo se registra el resultado y, si hace falta, el siguiente.
+export const followupChannelEnum = ops.enum("followup_channel", ["call", "whatsapp", "email", "video", "in_person"]);
+export const followupStatusEnum = ops.enum("followup_status", ["pending", "done", "cancelled"]);
+export const healthEnum = ops.enum("health", ["green", "yellow", "red"]);
+
+export const followups = ops.table(
+  "followups",
+  {
+    id: id(),
+    title: text("title").notNull(),
+    appUserUid: text("app_user_uid").references(() => appUsers.uid, { onDelete: "set null" }),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "cascade" }),
+    demoId: uuid("demo_id").references(() => demoRequests.id, { onDelete: "set null" }),
+    channel: followupChannelEnum("channel").notNull().default("call"),
+    dueOn: date("due_on").notNull(),
+    status: followupStatusEnum("status").notNull().default("pending"),
+    reason: text("reason").notNull().default("manual"), // manual | paying_inactive | trial_ending
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    outcome: text("outcome"),
+    health: healthEnum("health"),
+    nextAction: text("next_action"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [
+    index("followups_status_due_idx").on(t.status, t.dueOn),
+    // Una sola sugerencia automática pendiente por usuario y motivo.
+    uniqueIndex("followups_auto_unique").on(t.appUserUid, t.reason).where(sql`${t.status} = 'pending' and ${t.reason} <> 'manual'`),
+  ],
+);

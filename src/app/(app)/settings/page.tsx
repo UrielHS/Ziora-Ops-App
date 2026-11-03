@@ -41,6 +41,13 @@ export default async function SettingsPage() {
     },
     { name: "Webhook de demos (otras fuentes)", ok: !!process.env.DEMO_WEBHOOK_SECRET, detail: "Opcional; firma HMAC", hook: `${app}/api/webhooks/demo` },
     { name: "Reporte de bugs desde la app", ok: !!process.env.BUG_INTAKE_KEY, detail: "Authorization: Bearer BUG_INTAKE_KEY", hook: `${app}/api/bugs` },
+    {
+      name: "Usuarios de Ziora Copilot (Firebase)",
+      ok: !!(process.env.ZIORA_APP_SNAPSHOT_URL && process.env.ZIORA_APP_BRIDGE_SECRET),
+      detail: process.env.ZIORA_APP_SNAPSHOT_URL ? "opsSnapshot cada hora · solo conteos de pacientes" : "Falta desplegar opsSnapshot (docs/PUENTE-ZIORA-APP.md)",
+      hook: `${app}/api/jobs/sync-ziora-users`,
+    },
+    { name: "Ayuda y sugerencias de la app", ok: !!process.env.ZIORA_APP_BRIDGE_SECRET, detail: "Trigger opsHelpRequest → tickets; firma X-Ops-Signature", hook: `${app}/api/webhooks/ziora-help` },
   ];
 
   return (

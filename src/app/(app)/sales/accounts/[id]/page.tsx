@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { ExternalLink, Mail, Phone, Star } from "lucide-react";
+import { FollowupRow, NewFollowupButton } from "@/components/followups";
 import { AccountFormButton, ContactFormButton, ContractFormButton, DealFormButton } from "@/components/sales";
 import { Badge, btn, Card, PageHeader, PanelHeader } from "@/components/ui";
 import { db } from "@/db";
 import { listUsers } from "@/db/queries";
-import { accountContacts, accounts, contracts, deals } from "@/db/schema";
+import { accountContacts, accounts, contracts, deals, followups } from "@/db/schema";
 import { contacts } from "@/db/shared";
 import { contractAlerts, isLive, monthlyValue } from "@/domain/sales";
 import { fmtDate, money, todayISO, waLink } from "@/lib/format";
@@ -25,13 +26,15 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
   const [account] = await db.select().from(accounts).where(eq(accounts.id, id));
   if (!account) notFound();
   const today = todayISO();
-  const [users, people, ds, cs] = await Promise.all([
+  const [users, people, ds, cs, fus] = await Promise.all([
     listUsers(),
     db.select({ id: contacts.id, name: contacts.name, email: contacts.email, phone: contacts.phone, title: accountContacts.title, decisionMaker: accountContacts.decisionMaker })
       .from(accountContacts).innerJoin(contacts, eq(contacts.id, accountContacts.contactId)).where(eq(accountContacts.accountId, id)),
     db.select().from(deals).where(eq(deals.accountId, id)).orderBy(desc(deals.updatedAt)),
     db.select().from(contracts).where(eq(contracts.accountId, id)).orderBy(desc(contracts.startsOn)),
+    db.select().from(followups).where(eq(followups.accountId, id)).orderBy(asc(followups.status), desc(followups.dueOn)).limit(20),
   ]);
+  const canFollow = can(access, "followups.manage");
   const owner = users.find((u) => u.id === account.ownerId)?.name;
   const mrr = cs.filter((c) => isLive(c, today)).reduce((s, c) => s + monthlyValue(c.amountMxn, c.billingPeriod), 0);
   const alerts = contractAlerts(cs, today);
@@ -100,6 +103,14 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
           </div>
         </Card>
       </div>
+
+      <Card>
+        <PanelHeader title="Seguimiento" action={canFollow && <NewFollowupButton users={users} accountId={id} appUserLabel={account.name} triggerClass={ghost} />} />
+        <div className="mt-2">
+          {fus.length === 0 && <p className="px-5 pb-5 text-sm text-muted">Sin seguimientos todavía.</p>}
+          {fus.map((f) => <FollowupRow key={f.id} f={f} subject={account.name} owner={users.find((u) => u.id === f.ownerId)?.name} canEdit={canFollow} />)}
+        </div>
+      </Card>
 
       <Card>
         <PanelHeader title="Contratos" action={canEdit && <ContractFormButton accountId={id} triggerClass={ghost} />} />

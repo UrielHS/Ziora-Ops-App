@@ -1,0 +1,193 @@
+import Link from "next/link";
+import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { Activity, CircleDollarSign, HeartPulse, Users } from "lucide-react";
+import { savePlanPrice } from "@/actions/followups";
+import { NewFollowupButton } from "@/components/followups";
+import { Badge, btn, Card, cn, Empty, Field, inputCls, Kpi, PageHeader, PanelHeader, Select } from "@/components/ui";
+import { ActionForm, Modal, Submit } from "@/components/ui/form";
+import { db } from "@/db";
+import { listUsers } from "@/db/queries";
+import { appUserDaily, appUsers, followups, planPrices } from "@/db/schema";
+import { ACTIVE_DAYS, estimatedMrr, isActive, isPaying, summarizeByPlan } from "@/domain/app-users";
+import { fmtDate, money, relative } from "@/lib/format";
+import { BILLING_PERIOD, HEALTH } from "@/lib/labels";
+import { can } from "@/lib/permissions";
+import { requirePagePermission } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
+const PAGE = 100;
+
+export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string; plan?: string; estado?: string; p?: string }> }) {
+  const sp = await searchParams;
+  const access = await requirePagePermission("customers.view");
+  const showRevenue = can(access, "revenue.view");
+  const canFollow = can(access, "followups.manage");
+  const now = new Date();
+  const activeSince = new Date(now.getTime() - ACTIVE_DAYS * 86400000);
+  const page = Math.max(0, Number(sp.p ?? 0) || 0);
+
+  const where: SQL[] = [];
+  if (sp.estado === "baja") where.push(isNotNull(appUsers.removedAt));
+  else where.push(isNull(appUsers.removedAt));
+  if (sp.estado === "activo") where.push(gte(appUsers.lastActiveAt, activeSince));
+  if (sp.estado === "inactivo") where.push(or(lt(appUsers.lastActiveAt, activeSince), isNull(appUsers.lastActiveAt))!);
+  if (sp.plan) where.push(eq(appUsers.plan, sp.plan));
+  if (sp.q) where.push(or(ilike(appUsers.email, `%${sp.q}%`), ilike(appUsers.name, `%${sp.q}%`))!);
+
+  const [users, team, prices, rows, [{ total }], trend, [lastSync], lastHealth] = await Promise.all([
+    db.select().from(appUsers).where(isNull(appUsers.removedAt)),
+    listUsers(),
+    db.select().from(planPrices).orderBy(asc(planPrices.plan)),
+    db.select().from(appUsers).where(and(...where)).orderBy(desc(appUsers.lastActiveAt)).limit(PAGE).offset(page * PAGE),
+    db.select({ total: sql<number>`count(*)::int` }).from(appUsers).where(and(...where)),
+    db.select({
+      day: appUserDaily.day, users: sql<number>`sum(${appUserDaily.users})::int`, active: sql<number>`sum(${appUserDaily.active})::int`,
+      paying: sql<number>`sum(${appUserDaily.paying})::int`, mrr: sql<number>`sum(${appUserDaily.estimatedMrrMxn})::int`,
+    }).from(appUserDaily).where(gte(appUserDaily.day, new Date(now.getTime() - 60 * 86400000).toISOString().slice(0, 10))).groupBy(appUserDaily.day).orderBy(asc(appUserDaily.day)),
+    db.select({ at: sql<Date>`max(${appUsers.syncedAt})` }).from(appUsers),
+    db.selectDistinctOn([followups.appUserUid], { uid: followups.appUserUid, health: followups.health })
+      .from(followups).where(and(eq(followups.status, "done"), isNotNull(followups.health), isNotNull(followups.appUserUid)))
+      .orderBy(followups.appUserUid, desc(followups.completedAt)),
+  ]);
+
+  const byPlan = summarizeByPlan(users, prices, now);
+  const active = users.filter((u) => isActive(u.lastActiveAt, now)).length;
+  const paying = users.filter((u) => isPaying(u, prices)).length;
+  const patients = users.reduce((s, u) => s + u.patientCount, 0);
+  const plansSeen = [...new Set([...users.map((u) => u.plan), ...prices.map((p) => p.plan)])].sort();
+  const unpriced = [...new Set(users.map((u) => u.plan))].filter((p) => !prices.some((x) => x.plan === p));
+  const maxTrend = Math.max(1, ...trend.map((t) => t.users));
+  const qs = (patch: Record<string, string | undefined>) => {
+    const p = new URLSearchParams(Object.entries({ q: sp.q, plan: sp.plan, estado: sp.estado, ...patch }).filter(([, v]) => v) as [string, string][]);
+    return `/customers?${p}`;
+  };
+
+  if (!lastSync?.at) {
+    return (
+      <div className="flex flex-col gap-5">
+        <PageHeader eyebrow="Clientes" title="Usuarios de Ziora" />
+        <Empty title="Todavía no hay datos de la app" text="Falta conectar la función opsSnapshot de Firebase. La guía está en docs/PUENTE-ZIORA-APP.md; cuando esté lista, los usuarios se sincronizan cada hora." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Clientes"
+        title="Usuarios de Ziora"
+        subtitle={`Sincronizado ${relative(lastSync.at)} · activo = entró en los últimos ${ACTIVE_DAYS} días · de los pacientes solo se guarda el número`}
+        actions={showRevenue && <PricesButton plans={plansSeen} prices={prices} />}
+      />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi label="Usuarios" value={users.length} note={`${paying} de pago`} icon={Users} />
+        <Kpi label="Activos" value={`${users.length ? Math.round((active / users.length) * 100) : 0}%`} note={`${active} entraron en ${ACTIVE_DAYS} días`} icon={Activity} />
+        <Kpi label="Pacientes registrados" value={patients.toLocaleString("es-MX")} note={`${users.length ? (patients / users.length).toFixed(1) : 0} por terapeuta`} icon={HeartPulse} />
+        {showRevenue
+          ? <Kpi label="MRR estimado" value={money(estimatedMrr(users, prices))} note={unpriced.length ? `Sin precio: ${unpriced.join(", ")}` : "Plan × precio; falta conectar pagos"} icon={CircleDollarSign} highlight />
+          : <Kpi label="Planes" value={byPlan.length} icon={CircleDollarSign} />}
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
+        <Card className="p-5">
+          <p className="label">Usuarios y activos · últimos 60 días</p>
+          {trend.length < 2 ? <p className="mt-3 text-sm text-muted">La tendencia aparece después de unos días de sincronización.</p> : (
+            <div className="mt-4 flex h-36 items-end gap-[3px]">
+              {trend.map((t) => (
+                <div key={t.day} className="group relative flex flex-1 flex-col justify-end" style={{ height: "100%" }} title={`${fmtDate(t.day)} · ${t.users} usuarios · ${t.active} activos · ${t.paying} de pago`}>
+                  <div className="flex w-full flex-col justify-end rounded-t-sm bg-[#DCEFE6]" style={{ height: `${(t.users / maxTrend) * 100}%` }}>
+                    <div className="w-full rounded-t-sm bg-emerald" style={{ height: `${t.users ? (t.active / t.users) * 100 : 0}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 flex gap-4 text-[11px] text-muted">
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-[#DCEFE6]" />Usuarios</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-emerald" />Activos</span>
+          </div>
+        </Card>
+        <Card>
+          <PanelHeader title="Por plan" />
+          <div className="mt-2">
+            {byPlan.map((p) => (
+              <Link key={p.plan} href={qs({ plan: sp.plan === p.plan ? undefined : p.plan, p: undefined })} className={cn("flex items-center gap-3 border-b border-[#EFEDE6] px-5 py-2.5 text-sm last:border-b-0 hover:bg-[#FAF9F5]", sp.plan === p.plan && "bg-mint")}>
+                <span className="flex-1 font-semibold">{prices.find((x) => x.plan === p.plan)?.label ?? p.plan}</span>
+                <span className="text-muted">{p.users} · {p.active} activos</span>
+                {showRevenue && <span className="w-20 text-right font-semibold">{money(p.estimatedMrrMxn)}</span>}
+              </Link>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <form action="/customers" className="flex flex-wrap items-center gap-2 px-5 pt-5">
+          <input name="q" defaultValue={sp.q} placeholder="Buscar por correo o nombre" className={cn(inputCls, "max-w-xs rounded-full")} />
+          {sp.plan && <input type="hidden" name="plan" value={sp.plan} />}
+          <Select name="estado" defaultValue={sp.estado} placeholder="Todos" className="w-36" options={[["activo", "Activos"], ["inactivo", "Inactivos"], ["baja", "Dados de baja"]]} />
+          <button className={btn("ghost", "sm")}>Filtrar</button>
+          <span className="ml-auto text-xs text-faint">{total} usuarios</span>
+        </form>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead><tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-faint">
+              <th className="px-5 py-2 font-semibold">Terapeuta</th><th className="px-2 font-semibold">Plan</th><th className="px-2 font-semibold">Estado</th>
+              <th className="px-2 font-semibold">Última vez</th><th className="px-2 text-right font-semibold">Pacientes</th><th className="px-2 text-right font-semibold">Sesiones 30d</th>
+              <th className="px-2 font-semibold">Salud</th><th className="px-5" />
+            </tr></thead>
+            <tbody>
+              {rows.map((u) => {
+                const health = lastHealth.find((h) => h.uid === u.uid)?.health;
+                const act = isActive(u.lastActiveAt, now);
+                return (
+                  <tr key={u.uid} className="border-b border-[#EFEDE6] last:border-b-0">
+                    <td className="px-5 py-2.5"><span className="block font-semibold">{u.name ?? "—"}</span><span className="block text-xs text-muted">{u.email}</span></td>
+                    <td className="px-2">{prices.find((p) => p.plan === u.plan)?.label ?? u.plan}</td>
+                    <td className="px-2">{u.removedAt ? <Badge tone="gray">Baja</Badge> : <Badge tone={/cancel/i.test(u.status) ? "red" : /trial/i.test(u.status) ? "amber" : act ? "green" : "gray"}>{u.status}{!act && !/cancel/i.test(u.status) ? " · inactivo" : ""}</Badge>}</td>
+                    <td className="px-2 text-muted">{u.lastActiveAt ? relative(u.lastActiveAt) : "Nunca"}</td>
+                    <td className="px-2 text-right font-semibold">{u.patientCount}</td>
+                    <td className="px-2 text-right">{u.sessionsLast30d}</td>
+                    <td className="px-2">{health ? <Badge tone={HEALTH[health].tone}>{HEALTH[health].label}</Badge> : <span className="text-faint">—</span>}</td>
+                    <td className="px-5 text-right">{canFollow && !u.removedAt && <NewFollowupButton users={team} appUserUid={u.uid} appUserLabel={u.name ?? u.email} trigger="Seguimiento" triggerClass={btn("ghost", "sm")} />}</td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && <tr><td colSpan={8} className="px-5 py-6 text-center text-muted">Sin resultados.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {total > PAGE && (
+          <div className="flex justify-between px-5 py-3 text-xs">
+            {page > 0 ? <Link href={qs({ p: String(page - 1) })} className={btn("ghost", "sm")}>← Anteriores</Link> : <span />}
+            {(page + 1) * PAGE < total && <Link href={qs({ p: String(page + 1) })} className={btn("ghost", "sm")}>Siguientes →</Link>}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function PricesButton({ plans, prices }: { plans: string[]; prices: (typeof planPrices.$inferSelect)[] }) {
+  return (
+    <Modal trigger="Precios de planes" title="Precios para el MRR estimado" triggerClass={btn("ghost")} wide>
+      <p className="mb-4 text-sm text-muted">Mientras se conecta la fuente real de pagos, el ingreso se estima como plan × precio. Marca como &quot;de pago&quot; solo los planes que cobran.</p>
+      <div className="flex flex-col gap-3">
+        {plans.map((plan) => {
+          const p = prices.find((x) => x.plan === plan);
+          return (
+            <ActionForm key={plan} action={savePlanPrice} className="grid grid-cols-2 items-end gap-2 rounded-2xl border border-line bg-white p-3 sm:grid-cols-[1fr_1fr_110px_120px_auto_auto]">
+              <input type="hidden" name="plan" value={plan} />
+              <Field label={`Plan "${plan}"`}><input name="label" required defaultValue={p?.label ?? plan} className={inputCls} /></Field>
+              <Field label="Precio MXN"><input name="priceMxn" type="number" min={0} required defaultValue={p?.priceMxn ?? 0} className={inputCls} /></Field>
+              <Field label="Cobro"><Select name="billingPeriod" defaultValue={p?.billingPeriod ?? "monthly"} options={Object.entries(BILLING_PERIOD)} /></Field>
+              <label className="flex items-center gap-1.5 pb-2 text-sm"><input type="checkbox" name="paying" defaultChecked={p?.paying ?? plan !== "free"} className="h-4 w-4 accent-[#059669]" /> De pago</label>
+              <Submit variant="secondary">Guardar</Submit>
+            </ActionForm>
+          );
+        })}
+      </div>
+    </Modal>
+  );
+}

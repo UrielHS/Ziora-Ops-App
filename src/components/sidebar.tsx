@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2, Bug, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Ticket, Users, Video,
+  Building2, Bug, HeartPulse, PhoneCall, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Ticket, Users, Video,
 } from "lucide-react";
 import { Avatar, cn } from "@/components/ui";
 import { can, type Access, type Permission } from "@/lib/permissions";
@@ -26,6 +26,10 @@ export function Sidebar({
       { href: "/sales", label: "Cuentas y contratos", icon: Building2, perm: "sales.view" },
       { href: "/demos", label: "Demos", icon: Video, count: counts.demos },
       { href: "/contacts", label: "Contactos", icon: Users, shared: true },
+    ] },
+    { label: "Clientes", items: [
+      { href: "/customers", label: "Usuarios de Ziora", icon: HeartPulse, perm: "customers.view" },
+      { href: "/followups", label: "Seguimiento 1:1", icon: PhoneCall, count: counts.followups, perm: "followups.manage" },
     ] },
     { label: "Marketing", items: [
       { href: "/content", label: "Contenido", icon: Megaphone },
