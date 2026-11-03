@@ -288,3 +288,18 @@ export const goals = ops.table("goals", {
   position: integer("position").notNull().default(0),
   ...timestamps(),
 });
+
+// ---------- equipo: roles funcionales de Ziora Ops ----------
+// public.users.role (admin/operator/volunteer) es de Event Ops. Estos roles son propios de Ziora Ops
+// y deciden qué ve y qué puede hacer cada persona. Una persona puede tener varios.
+export const opsRoleEnum = ops.enum("ops_role", ["ceo", "sales", "clinical_director", "marketing", "operations", "dev_qa"]);
+
+export const memberRoles = ops.table(
+  "member_roles",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    role: opsRoleEnum("role").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.role] })],
+);

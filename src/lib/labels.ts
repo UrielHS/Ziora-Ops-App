@@ -119,3 +119,12 @@ export const LEGAL_CHECKLIST = [
   "Sin humor sobre suicidio, crisis ni diagnósticos",
   "CTA vigente según la regla 2.4 (sin \"14 días sin tarjeta\" hasta confirmar)",
 ] as const;
+
+export const OPS_ROLE = {
+  ceo: { label: "CEO", tone: "green" },
+  sales: { label: "Ventas", tone: "amber" },
+  clinical_director: { label: "Director clínico", tone: "blue" },
+  marketing: { label: "Marketing", tone: "lilac" },
+  operations: { label: "Operaciones", tone: "gray" },
+  dev_qa: { label: "Dev / QA", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;

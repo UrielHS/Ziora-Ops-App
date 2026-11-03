@@ -6,12 +6,18 @@ import {
   Bug, CalendarDays, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Users, Video,
 } from "lucide-react";
 import { Avatar, cn } from "@/components/ui";
+import { can, type Access, type Permission } from "@/lib/permissions";
 
-type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; shared?: boolean; count?: number };
+type Item = {
+  href: string; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  shared?: boolean; count?: number; perm?: Permission;
+};
 
-export function Sidebar({ user, counts }: { user: { name: string; role: string }; counts: Record<string, number> }) {
+export function Sidebar({
+  user, counts, access,
+}: { user: { name: string; roleLabel: string }; counts: Record<string, number>; access: Access }) {
   const path = usePathname();
-  const groups: { label: string; items: Item[] }[] = [
+  const all: { label: string; items: Item[] }[] = [
     { label: "Operación", items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/tasks", label: "Tareas", icon: CheckSquare, count: counts.tasks },
@@ -35,6 +41,10 @@ export function Sidebar({ user, counts }: { user: { name: string; role: string }
       { href: "/settings", label: "Ajustes", icon: Settings },
     ] },
   ];
+  // Sin roles asignados todavía: se ve todo lo que no exige permiso (Ajustes → Equipo los asigna).
+  const groups = all
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.perm || can(access, i.perm)) }))
+    .filter((g) => g.items.length > 0);
   const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
 
   return (
@@ -77,7 +87,7 @@ export function Sidebar({ user, counts }: { user: { name: string; role: string }
         <Avatar name={user.name} size={30} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{user.name}</p>
-          <p className="text-[11px] capitalize text-faint">{user.role}</p>
+          <p className="truncate text-[11px] text-faint">{user.roleLabel}</p>
         </div>
       </div>
     </aside>

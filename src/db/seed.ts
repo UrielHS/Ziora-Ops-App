@@ -31,12 +31,6 @@ const dateISO = (offset: number) => new Date(now + offset * DAY).toISOString().s
 const pick = <T,>(arr: T[], i: number) => arr[i % arr.length];
 
 async function main() {
-  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(ops.tasks);
-  if (n > 0) {
-    console.log("Ya hay datos en ops.tasks; no se siembra nada.");
-    return;
-  }
-
   // ---------- equipo (public.users: en producción lo administra Event Ops) ----------
   const team = [
     { email: "chris@ziora.dev", name: "Chris", role: "admin" as const },
@@ -44,11 +38,25 @@ async function main() {
     { email: "ale@ziora.dev", name: "Ale", role: "operator" as const },
     { email: (process.env.DEV_LOGIN_EMAIL ?? "uriel@ziora.dev").toLowerCase(), name: "Uriel", role: "admin" as const },
     { email: "paulina@ziora.dev", name: "Paulina", role: "operator" as const },
+    { email: "euridice@ziora.dev", name: "Euridice", role: "operator" as const },
     { email: "j@ziora.dev", name: "J", role: "operator" as const },
   ];
   await db.insert(shared.users).values(team.map((u) => ({ ...u, active: true }))).onConflictDoNothing();
   const users = await db.select().from(shared.users);
   const U = (name: string) => users.find((u) => u.name === name)!.id;
+
+  // Roles de Ziora Ops (idempotente: se siembra aunque ya haya datos).
+  const roles: [string, (typeof ops.opsRoleEnum.enumValues)[number]][] = [
+    ["Chris", "ceo"], ["Rafa", "clinical_director"], ["Ale", "marketing"], ["Euridice", "sales"],
+    ["Paulina", "operations"], ["Uriel", "dev_qa"], ["Uriel", "operations"],
+  ];
+  await db.insert(ops.memberRoles).values(roles.map(([name, role]) => ({ userId: U(name), role }))).onConflictDoNothing();
+
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(ops.tasks);
+  if (n > 0) {
+    console.log("Ya hay datos en ops.tasks; solo se sembraron equipo y roles.");
+    return;
+  }
 
   // ---------- épicas y sprints ----------
   const epicRows = await db.insert(ops.epics).values([

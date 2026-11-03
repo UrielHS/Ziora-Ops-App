@@ -3,13 +3,15 @@ import { Plus, Search } from "lucide-react";
 import { MobileNav, Sidebar } from "@/components/sidebar";
 import { btn, inputCls } from "@/components/ui";
 import { navCounts } from "@/db/queries";
-import { requireUser } from "@/lib/session";
+import { OPS_ROLE } from "@/lib/labels";
+import { requireAccess } from "@/lib/session";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [user, counts] = await Promise.all([requireUser(), navCounts()]);
+  const [{ user, isAdmin, roles }, counts] = await Promise.all([requireAccess(), navCounts()]);
+  const roleLabel = roles.length ? roles.map((r) => OPS_ROLE[r].label).join(" · ") : isAdmin ? "Admin" : "Sin rol asignado";
   return (
     <div className="flex min-h-screen">
-      <Sidebar user={{ name: user.name, role: user.role }} counts={counts} />
+      <Sidebar user={{ name: user.name, roleLabel }} counts={counts} access={{ isAdmin, roles }} />
       <div className="min-w-0 flex-1 px-4 pb-24 pt-4 md:px-6 md:pb-8">
         <div className="mb-5 flex items-center gap-3">
           <form action="/search" className="relative max-w-md flex-1">
@@ -30,6 +32,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </div>
           </details>
         </div>
+        {!isAdmin && roles.length === 0 && (
+          <p className="mb-4 rounded-2xl border border-warn/30 bg-warn-bg px-4 py-2.5 text-sm text-warn">
+            Todavía no tienes un rol en Ziora Ops. Pide a Chris o a Pau que te lo asignen en Ajustes → Equipo.
+          </p>
+        )}
         {children}
       </div>
       <MobileNav />
