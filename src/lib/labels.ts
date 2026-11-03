@@ -1,0 +1,121 @@
+export type Tone = "green" | "gray" | "amber" | "red" | "blue" | "lilac";
+
+export const TASK_STATUS = {
+  backlog: { label: "Backlog", tone: "gray" },
+  todo: { label: "Por hacer", tone: "gray" },
+  in_progress: { label: "En curso", tone: "blue" },
+  in_review: { label: "En revisión", tone: "amber" },
+  done: { label: "Hecho", tone: "green" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const PRIORITY = {
+  urgent: { label: "Urgente", tone: "red" },
+  high: { label: "Alta", tone: "amber" },
+  medium: { label: "Media", tone: "gray" },
+  low: { label: "Baja", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const DEMO_STAGE = {
+  requested: { label: "Solicitada", tone: "gray" },
+  scheduled: { label: "Agendada", tone: "blue" },
+  done: { label: "Realizada", tone: "lilac" },
+  trial: { label: "En trial", tone: "amber" },
+  paid: { label: "Pagó", tone: "green" },
+  no_show: { label: "No asistió", tone: "red" },
+  lost: { label: "Perdida", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const BUG_SEVERITY = {
+  critical: { label: "Crítico", tone: "red" },
+  high: { label: "Alto", tone: "amber" },
+  medium: { label: "Medio", tone: "gray" },
+  low: { label: "Bajo", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const BUG_STATUS = {
+  new: { label: "Nuevo", tone: "red" },
+  triaged: { label: "Clasificado", tone: "amber" },
+  in_progress: { label: "En curso", tone: "blue" },
+  fixed: { label: "Corregido", tone: "lilac" },
+  verified: { label: "Verificado", tone: "green" },
+  wont_fix: { label: "No se corrige", tone: "gray" },
+  duplicate: { label: "Duplicado", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const BUG_SOURCE = { manual: "Manual", ziora_app: "App Ziora", sentry: "Sentry", github: "GitHub" } as const;
+
+export const PR_STATE = {
+  open: { label: "Abierto", tone: "green" },
+  merged: { label: "Merged", tone: "lilac" },
+  closed: { label: "Cerrado", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const CAMPAIGN_STATUS = {
+  draft: { label: "Borrador", tone: "gray" },
+  scheduled: { label: "Programada", tone: "blue" },
+  sending: { label: "Enviando", tone: "amber" },
+  sent: { label: "Enviada", tone: "green" },
+  failed: { label: "Falló", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const SEND_STATUS = {
+  queued: "En cola", sent: "Enviado", delivered: "Entregado", opened: "Abierto", clicked: "Clic",
+  bounced: "Rebotó", complained: "Spam", failed: "Falló", skipped: "Omitido",
+} as const;
+
+export const CONTENT_PILLAR = {
+  producto: { label: "Ziora (producto)", tone: "green" },
+  ia_psicoterapia: { label: "IA en psicoterapia", tone: "blue" },
+  estudios: { label: "Estudios", tone: "lilac" },
+  roi: { label: "ROI del terapeuta", tone: "amber" },
+  psicoterapia_moderna: { label: "Psicoterapia moderna", tone: "blue" },
+  memes: { label: "Memes", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const CONTENT_CHANNEL = {
+  instagram: "Instagram", tiktok: "TikTok", facebook_group: "Grupos FB", linkedin: "LinkedIn", blog: "Blog", email: "Email",
+} as const;
+
+export const CONTENT_STATUS = {
+  idea: { label: "Idea", tone: "gray" },
+  draft: { label: "Borrador", tone: "gray" },
+  legal_review: { label: "Revisión", tone: "amber" },
+  approved: { label: "Aprobado", tone: "blue" },
+  scheduled: { label: "Programado", tone: "lilac" },
+  published: { label: "Publicado", tone: "green" },
+  discarded: { label: "Descartado", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const RISK = {
+  low: { label: "Riesgo bajo", tone: "green" },
+  medium: { label: "Riesgo medio", tone: "amber" },
+  high: { label: "Riesgo alto", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const CITY = { cdmx: "CDMX", gdl: "Guadalajara", mty: "Monterrey", nyc: "NYC", other: "Otra", tbd: "Por definir" } as const;
+
+export const CONTACT_TAG: Record<string, string> = {
+  psychologist: "Psicólogo/a", lead: "Lead", clinic: "Clínica", ziora_user: "Usuario Ziora",
+  sponsor: "Sponsor", speaker: "Speaker", panelist: "Panelista", founder: "Founder", angel: "Angel", vc: "VC",
+  venue: "Venue", community_partner: "Comunidad", influencer: "Influencer", hospital: "Hospital",
+  university: "Universidad", volunteer: "Voluntario", attendee: "Asistente", vendor: "Proveedor",
+};
+
+export const CONTACT_SOURCE: Record<string, string> = {
+  manual: "Manual", luma: "Luma", notion: "Notion", linkedin: "LinkedIn", ai_tinkerers: "AI Tinkerers",
+  demo_form: "Formulario demo", ziora_app: "App Ziora", facebook_group: "Grupo FB", instagram: "Instagram", csv_import: "CSV",
+};
+
+/** Checklist de la sección 5 del brief GTM: debe estar completa para aprobar una pieza. */
+export const LEGAL_CHECKLIST = [
+  "Digo \"asistente administrativo\", nunca EHR, expediente oficial ni sistema certificado",
+  "Digo \"te deja listo para cumplir\", nunca \"Ziora cumple la NOM-004\"",
+  "Todo lo de la IA es un borrador que el terapeuta revisa y aprueba",
+  "Nunca \"predice\", \"detecta riesgo suicida\" ni diagnostica",
+  "\"Seguridad de grado clínico\"; nunca HIPAA, SOC 2 ni certificado",
+  "WhatsApp: solo \"botones\", sin recordatorios automáticos",
+  "Cada cifra lleva fuente y país (si es de EE. UU., lo digo)",
+  "Sin datos, casos ni frases de pacientes, ni inventados",
+  "Sin humor sobre suicidio, crisis ni diagnósticos",
+  "CTA vigente según la regla 2.4 (sin \"14 días sin tarjeta\" hasta confirmar)",
+] as const;

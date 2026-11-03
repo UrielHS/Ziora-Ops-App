@@ -1,0 +1,17 @@
+# Postgres local para desarrollar Ziora Ops sin levantar Event Ops.
+# Carga el schema public de Event Ops (dev/eventops-public-schema.sql) al crearse el volumen.
+# Si prefieres compartir la BD local de Event Ops, apunta DATABASE_URL a su Postgres (puerto 5432) y no uses este.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: eventops
+      POSTGRES_PASSWORD: eventops
+      POSTGRES_DB: eventops
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./dev/eventops-public-schema.sql:/docker-entrypoint-initdb.d/01-eventops-public.sql:ro
+volumes:
+  pgdata:

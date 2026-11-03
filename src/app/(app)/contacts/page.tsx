@@ -1,0 +1,219 @@
+import Link from "next/link";
+import { and, count, desc, eq, exists, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { Link2, Mail, MailX, Phone } from "lucide-react";
+import { createContact, setConsent, updateContact } from "@/actions/contacts";
+import { Avatar, Badge, btn, Card, cn, Field, inputCls, PageHeader, Select } from "@/components/ui";
+import { ActionForm, Modal, Submit } from "@/components/ui/form";
+import { db } from "@/db";
+import { contactConsents, demoRequests } from "@/db/schema";
+import { cityEnum, contacts, contactSourceEnum, contactTagEnum, contactTags } from "@/db/shared";
+import { fmtDate } from "@/lib/format";
+import { CITY, CONTACT_SOURCE, CONTACT_TAG } from "@/lib/labels";
+
+export const dynamic = "force-dynamic";
+const PAGE = 40;
+type SP = { q?: string; tag?: string; city?: string; source?: string; consent?: string; page?: string; nuevo?: string };
+
+const ZIORA_TAGS = ["psychologist", "lead", "clinic", "ziora_user"] as const;
+
+function TagPicker({ selected = [] }: { selected?: string[] }) {
+  const order = [...ZIORA_TAGS, ...contactTagEnum.enumValues.filter((t) => !(ZIORA_TAGS as readonly string[]).includes(t))];
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {order.map((t) => (
+        <label key={t} className="cursor-pointer">
+          <input type="checkbox" name="tags[]" value={t} defaultChecked={selected.includes(t)} className="peer sr-only" />
+          <span className="pill border border-line bg-white text-muted peer-checked:border-emerald/40 peer-checked:bg-mint peer-checked:text-emerald">{CONTACT_TAG[t] ?? t}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+export default async function ContactsPage({ searchParams }: { searchParams: Promise<SP> }) {
+  const sp = await searchParams;
+  const page = Math.max(1, Number(sp.page ?? 1));
+  const where: SQL[] = [eq(contacts.type, "person")];
+  if (sp.q) where.push(or(ilike(contacts.name, `%${sp.q}%`), ilike(contacts.email, `%${sp.q}%`))!);
+  if (sp.city) where.push(eq(contacts.city, sp.city as (typeof cityEnum.enumValues)[number]));
+  if (sp.source) where.push(eq(contacts.source, sp.source as (typeof contactSourceEnum.enumValues)[number]));
+  if (sp.tag) where.push(exists(db.select({ x: sql`1` }).from(contactTags).where(and(eq(contactTags.contactId, contacts.id), eq(contactTags.tag, sp.tag as (typeof contactTagEnum.enumValues)[number])))));
+  if (sp.consent === "yes") where.push(eq(contactConsents.optIn, true));
+  if (sp.consent === "no") where.push(or(isNull(contactConsents.optIn), eq(contactConsents.optIn, false))!);
+
+  const base = db
+    .select({ c: contacts, optIn: contactConsents.optIn, optedOutAt: contactConsents.optedOutAt, evidence: contactConsents.evidence })
+    .from(contacts)
+    .leftJoin(contactConsents, and(eq(contactConsents.contactId, contacts.id), eq(contactConsents.channel, "email")))
+    .where(and(...where));
+  const [rows, [{ total }], [stats]] = await Promise.all([
+    base.orderBy(desc(contacts.updatedAt)).limit(PAGE).offset((page - 1) * PAGE),
+    db.select({ total: count() }).from(contacts).leftJoin(contactConsents, and(eq(contactConsents.contactId, contacts.id), eq(contactConsents.channel, "email"))).where(and(...where)),
+    db.select({
+      all: sql<number>`count(*)::int`,
+      psych: sql<number>`count(*) filter (where exists (select 1 from contact_tags t where t.contact_id = ${contacts.id} and t.tag = 'psychologist'))::int`,
+      optIn: sql<number>`count(*) filter (where exists (select 1 from ops.contact_consents k where k.contact_id = ${contacts.id} and k.opt_in))::int`,
+      fromZiora: sql<number>`count(*) filter (where ${contacts.source} in ('demo_form','ziora_app','facebook_group','instagram'))::int`,
+    }).from(contacts).where(eq(contacts.type, "person")),
+  ]);
+  const ids = rows.map((r) => r.c.id);
+  const [tagRows, demoRows] = ids.length
+    ? await Promise.all([
+        db.select().from(contactTags).where(inArray(contactTags.contactId, ids)),
+        db.select({ contactId: demoRequests.contactId, stage: demoRequests.stage }).from(demoRequests).where(inArray(demoRequests.contactId, ids)),
+      ])
+    : [[], []];
+  const tagsOf = (id: string) => tagRows.filter((t) => t.contactId === id).map((t) => t.tag);
+  const eventOps = process.env.EVENT_OPS_URL ?? "https://event-ops-845770051786.us-central1.run.app";
+  const pages = Math.ceil(total / PAGE);
+  const qs = (p: number) => `/contacts?${new URLSearchParams(Object.entries({ ...sp, page: String(p), nuevo: undefined }).filter(([, v]) => v) as [string, string][])}`;
+
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Ventas · base compartida"
+        title="Contactos"
+        subtitle="La misma base que usa Event Ops: lo que agregues aquí aparece allá para invitarlo a eventos, y viceversa."
+        actions={
+          <Modal trigger="+ Contacto" title="Nuevo contacto" defaultOpen={sp.nuevo === "1"}>
+            <ActionForm action={createContact}>
+              <Field label="Nombre"><input name="name" required className={inputCls} placeholder="Psic. Nombre Apellido" /></Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Correo"><input type="email" name="email" required className={inputCls} /></Field>
+                <Field label="Teléfono / WhatsApp"><input name="phone" className={inputCls} /></Field>
+                <Field label="Ciudad"><Select name="city" placeholder="—" options={Object.entries(CITY)} /></Field>
+                <Field label="Origen"><Select name="source" defaultValue="manual" options={Object.entries(CONTACT_SOURCE)} /></Field>
+              </div>
+              <Field label="Etiquetas"><TagPicker selected={["psychologist"]} /></Field>
+              <Field label="Notas"><textarea name="notes" rows={2} className={inputCls} /></Field>
+              <div className="rounded-2xl border border-line bg-white p-3">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input type="checkbox" name="optIn" className="h-4 w-4 accent-[#059669]" /> Tiene permiso para recibir correos
+                </label>
+                <input name="evidence" className={cn(inputCls, "mt-2")} placeholder="Evidencia: formulario de evento 12-oct, mensaje de WhatsApp…" />
+              </div>
+              <Submit>Guardar contacto</Submit>
+            </ActionForm>
+          </Modal>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          ["Contactos (personas)", stats.all, "En ambos sistemas"],
+          ["Psicólogos", stats.psych, "Etiqueta psicólogo/a"],
+          ["Con permiso de correo", stats.optIn, `${stats.all ? Math.round((stats.optIn / stats.all) * 100) : 0}% de la base`],
+          ["Llegaron por Ziora", stats.fromZiora, "Demo, app, redes"],
+        ].map(([l, v, n]) => (
+          <div key={l as string} className="card p-4">
+            <p className="label">{l}</p>
+            <p className="mt-1 text-2xl font-extrabold">{v}</p>
+            <p className="text-[11px] text-muted">{n}</p>
+          </div>
+        ))}
+      </div>
+
+      <form className="flex flex-wrap items-center gap-2">
+        <input name="q" defaultValue={sp.q} placeholder="Nombre o correo" className={cn(inputCls, "w-56 rounded-full py-1.5")} />
+        <Select name="tag" defaultValue={sp.tag} placeholder="Todas las etiquetas" className="w-auto rounded-full py-1.5 text-xs" options={Object.entries(CONTACT_TAG)} />
+        <Select name="city" defaultValue={sp.city} placeholder="Todas las ciudades" className="w-auto rounded-full py-1.5 text-xs" options={Object.entries(CITY)} />
+        <Select name="source" defaultValue={sp.source} placeholder="Todos los orígenes" className="w-auto rounded-full py-1.5 text-xs" options={Object.entries(CONTACT_SOURCE)} />
+        <Select name="consent" defaultValue={sp.consent} placeholder="Permiso: todos" className="w-auto rounded-full py-1.5 text-xs" options={[["yes", "Con permiso"], ["no", "Sin permiso"]]} />
+        <button className={btn("ghost", "sm")}>Filtrar</button>
+        {Object.keys(sp).length > 0 && <Link href="/contacts" className="text-xs text-muted underline">Limpiar</Link>}
+      </form>
+
+      <Card>
+        <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)_auto] gap-3 border-b border-line px-5 py-2.5 md:grid">
+          {["Contacto", "Ciudad · origen", "Etiquetas", "Correo marketing", ""].map((h) => <span key={h} className="label">{h}</span>)}
+        </div>
+        {rows.length === 0 && <p className="p-6 text-sm text-muted">Sin contactos con estos filtros.</p>}
+        {rows.map(({ c, optIn, optedOutAt, evidence }) => {
+          const tags = tagsOf(c.id);
+          const demo = demoRows.find((d) => d.contactId === c.id);
+          return (
+            <Modal
+              key={c.id}
+              title={c.name}
+              triggerClass="grid w-full grid-cols-1 gap-2 border-b border-[#EFEDE6] px-5 py-3 text-left last:border-b-0 hover:bg-[#FBFAF6] md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)_auto] md:items-center md:gap-3"
+              trigger={
+                <>
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <Avatar name={c.name} size={32} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold">{c.name}</span>
+                      <span className="block truncate text-xs text-muted">{c.email ?? "sin correo"}</span>
+                    </span>
+                  </span>
+                  <span className="text-xs text-muted">
+                    {c.city ? CITY[c.city] : "—"} · {CONTACT_SOURCE[c.source] ?? c.source}
+                  </span>
+                  <span className="flex flex-wrap gap-1">
+                    {tags.slice(0, 4).map((t) => <Badge key={t} tone={(ZIORA_TAGS as readonly string[]).includes(t) ? "green" : "gray"}>{CONTACT_TAG[t] ?? t}</Badge>)}
+                    {demo && <Badge tone="blue">Demo</Badge>}
+                  </span>
+                  <span>
+                    {optedOutAt ? <Badge tone="red"><MailX className="mr-1 h-3 w-3" />Se dio de baja</Badge>
+                      : optIn ? <Badge tone="green"><Mail className="mr-1 h-3 w-3" />Con permiso</Badge>
+                      : <Badge tone="gray">Sin permiso</Badge>}
+                  </span>
+                  <span className="text-[11px] text-faint">{fmtDate(c.updatedAt)}</span>
+                </>
+              }
+            >
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-wrap gap-2 text-sm">
+                  {c.email && <a href={`mailto:${c.email}`} className={btn("ghost", "sm")}><Mail className="h-3.5 w-3.5" />{c.email}</a>}
+                  {c.phone && <span className={btn("ghost", "sm")}><Phone className="h-3.5 w-3.5" />{c.phone}</span>}
+                  <a href={`${eventOps}/contacts/${c.id}`} target="_blank" className={btn("secondary", "sm")}><Link2 className="h-3.5 w-3.5" />Abrir en Event Ops</a>
+                </div>
+                <ActionForm action={updateContact}>
+                  <input type="hidden" name="id" value={c.id} />
+                  <Field label="Nombre"><input name="name" defaultValue={c.name} className={inputCls} /></Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Teléfono"><input name="phone" defaultValue={c.phone ?? ""} className={inputCls} /></Field>
+                    <Field label="Ciudad"><Select name="city" defaultValue={c.city} placeholder="—" options={Object.entries(CITY)} /></Field>
+                  </div>
+                  <Field label="Etiquetas" hint="Ziora Ops solo agrega etiquetas; quitar se hace en Event Ops."><TagPicker selected={tags} /></Field>
+                  <Field label="Notas"><textarea name="notes" rows={2} defaultValue={c.notes ?? ""} className={inputCls} /></Field>
+                  <Submit>Guardar cambios</Submit>
+                </ActionForm>
+                <div className="rounded-2xl border border-line bg-white p-4">
+                  <p className="text-sm font-bold">Permiso de correo (LFPDPPP)</p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {optedOutAt ? `Se dio de baja el ${fmtDate(optedOutAt, { dateStyle: "medium" })}. No se le puede volver a suscribir manualmente.`
+                      : optIn ? `Con permiso. Evidencia: ${evidence ?? "—"}` : "Sin permiso registrado: no recibe campañas."}
+                  </p>
+                  {!optedOutAt && (
+                    <ActionForm action={setConsent} className="mt-3 flex flex-col gap-2">
+                      <input type="hidden" name="contactId" value={c.id} />
+                      {optIn ? (
+                        <>
+                          <input type="hidden" name="optIn" value="no" />
+                          <Submit variant="danger">Registrar baja</Submit>
+                        </>
+                      ) : (
+                        <>
+                          <input type="hidden" name="optIn" value="yes" />
+                          <input name="evidence" required className={inputCls} placeholder="Cómo dio su permiso" />
+                          <Submit variant="secondary">Registrar permiso</Submit>
+                        </>
+                      )}
+                    </ActionForm>
+                  )}
+                </div>
+              </div>
+            </Modal>
+          );
+        })}
+      </Card>
+      {pages > 1 && (
+        <div className="flex items-center justify-center gap-2 text-sm">
+          {page > 1 && <Link href={qs(page - 1)} className={btn("ghost", "sm")}>← Anterior</Link>}
+          <span className="text-muted">Página {page} de {pages} · {total} contactos</span>
+          {page < pages && <Link href={qs(page + 1)} className={btn("ghost", "sm")}>Siguiente →</Link>}
+        </div>
+      )}
+    </div>
+  );
+}

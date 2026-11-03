@@ -1,0 +1,95 @@
+import { asc } from "drizzle-orm";
+import { CheckCircle2, CircleDashed, ExternalLink } from "lucide-react";
+import { createEpic } from "@/actions/tasks";
+import { Avatar, Badge, btn, Card, Field, inputCls, PageHeader, PanelHeader } from "@/components/ui";
+import { ActionForm, Modal, Submit } from "@/components/ui/form";
+import { CopyButton } from "@/components/ui/copy";
+import { db } from "@/db";
+import { listEpics } from "@/db/queries";
+import { users } from "@/db/shared";
+
+export const dynamic = "force-dynamic";
+
+export default async function SettingsPage() {
+  const [team, epics] = await Promise.all([db.select().from(users).orderBy(asc(users.name)), listEpics()]);
+  const app = process.env.APP_URL ?? "http://localhost:3001";
+  const eventOps = process.env.EVENT_OPS_URL ?? "https://event-ops-845770051786.us-central1.run.app";
+  const integrations = [
+    { name: "Base de datos compartida", ok: true, detail: "Cloud SQL event-ops-db · schemas public (Event Ops) y ops (Ziora Ops)" },
+    { name: "Login con Google", ok: !!process.env.AUTH_GOOGLE_ID, detail: "Mismo cliente OAuth que Event Ops" },
+    { name: "Resend (correo)", ok: !!process.env.RESEND_API_KEY, detail: process.env.MAIL_FROM ?? "Falta MAIL_FROM", hook: `${app}/api/webhooks/resend` },
+    { name: "GitHub", ok: !!process.env.GITHUB_TOKEN, detail: process.env.GITHUB_REPOS || "Falta GITHUB_REPOS", hook: `${app}/api/webhooks/github` },
+    {
+      name: "Demos desde el calendario del CEO",
+      ok: !!(process.env.GOOGLE_CALENDAR_SUBJECT && process.env.GOOGLE_INGEST_SA),
+      detail: process.env.GOOGLE_CALENDAR_SUBJECT
+        ? `${process.env.GOOGLE_CALENDAR_SUBJECT} · eventos con "${process.env.DEMO_EVENT_MATCH || "Demo"}" · cada 10 min`
+        : "Falta GOOGLE_CALENDAR_SUBJECT y la delegación de dominio en Workspace",
+      hook: `${app}/api/jobs/sync-demos`,
+    },
+    { name: "Webhook de demos (otras fuentes)", ok: !!process.env.DEMO_WEBHOOK_SECRET, detail: "Opcional; firma HMAC", hook: `${app}/api/webhooks/demo` },
+    { name: "Reporte de bugs desde la app", ok: !!process.env.BUG_INTAKE_KEY, detail: "Authorization: Bearer BUG_INTAKE_KEY", hook: `${app}/api/bugs` },
+  ];
+
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader eyebrow="Ajustes" title="Configuración" subtitle="Guía completa de conexión en docs/SETUP-CONEXION.md" />
+      <Card>
+        <PanelHeader title="Integraciones" />
+        <div className="mt-2">
+          {integrations.map((i) => (
+            <div key={i.name} className="flex flex-col gap-2 border-b border-[#EFEDE6] px-5 py-3 last:border-b-0 md:flex-row md:items-center">
+              {i.ok ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald" /> : <CircleDashed className="h-5 w-5 shrink-0 text-faint" />}
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{i.name}</span>
+                <span className="block truncate text-xs text-muted">{i.detail}</span>
+              </span>
+              {i.hook && <span className="flex items-center gap-2"><code className="max-w-xs truncate rounded-lg bg-[#F3F1EA] px-2 py-1 text-[11px]">{i.hook}</code><CopyButton text={i.hook} /></span>}
+              <Badge tone={i.ok ? "green" : "gray"}>{i.ok ? "Conectado" : "Pendiente"}</Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card>
+          <PanelHeader title="Equipo" subtitle="Se administra en Event Ops (Settings → Users). Quien está activo allá entra aquí." action={<a href={`${eventOps}/settings`} target="_blank" className={btn("ghost", "sm")}>Event Ops <ExternalLink className="h-3 w-3" /></a>} />
+          <div className="mt-2">
+            {team.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 border-b border-[#EFEDE6] px-5 py-2.5 last:border-b-0">
+                <Avatar name={u.name} size={28} />
+                <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{u.name}</span><span className="block truncate text-xs text-muted">{u.email}</span></span>
+                <Badge tone={u.active ? "green" : "gray"}>{u.active ? u.role : "inactivo"}</Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <PanelHeader
+            title="Épicas"
+            subtitle="Agrupan tareas en el tablero"
+            action={
+              <Modal trigger="+ Épica" title="Nueva épica" triggerClass={btn("ghost", "sm")}>
+                <ActionForm action={createEpic}>
+                  <div className="grid grid-cols-[1fr_2fr] gap-3">
+                    <Field label="Clave"><input name="key" required maxLength={8} className={inputCls} placeholder="LEGAL" /></Field>
+                    <Field label="Nombre"><input name="name" required className={inputCls} placeholder="Revisión legal" /></Field>
+                  </div>
+                  <Field label="Color"><input type="color" name="color" defaultValue="#4E6B5C" className="h-10 w-20 rounded-lg border border-line" /></Field>
+                  <Submit>Crear</Submit>
+                </ActionForm>
+              </Modal>
+            }
+          />
+          <div className="mt-2">
+            {epics.map((e) => (
+              <div key={e.id} className="flex items-center gap-3 border-b border-[#EFEDE6] px-5 py-2.5 last:border-b-0">
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: e.color }}>{e.key}</span>
+                <span className="text-sm">{e.name}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,36 @@
+import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { users } from "@/db/shared";
+
+// Misma lista de permitidos que Event Ops: la tabla public.users.
+// Quien está activo ahí entra a ambos sistemas. Aquí nunca se crean ni escalan cuentas.
+// En desarrollo, si no hay AUTH_SECRET, usa uno fijo para que la app arranque sin configurar nada.
+// En producción no hay respaldo: Auth.js falla si falta el secreto, que es lo correcto.
+const secret = process.env.AUTH_SECRET || (process.env.NODE_ENV !== "production" ? "solo-desarrollo-ziora-ops-no-usar-en-produccion" : undefined);
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret,
+  providers: [Google],
+  session: { strategy: "jwt" },
+  pages: { signIn: "/login", error: "/login" },
+  callbacks: {
+    async signIn({ user, profile }) {
+      if (profile && profile.email_verified === false) return false;
+      const email = user.email?.toLowerCase();
+      if (!email) return false;
+      try {
+        const rows = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.email, email), eq(users.active, true)))
+          .limit(1);
+        return rows.length === 1;
+      } catch (err) {
+        console.error("signIn: error de base de datos", err);
+        return false;
+      }
+    },
+  },
+});

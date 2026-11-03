@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* Tokens Ziora Ops: base crema de Event Ops + verdes del sitio ziora-copilot.com */
+@theme {
+  --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-cream: #f7f6f0;
+  --color-ink: #1a2520;          /* títulos y hero */
+  --color-forest: #4e6b5c;       /* botón primario del sitio */
+  --color-forest-hover: #405a4d;
+  --color-teal: #1f4a45;         /* logo */
+  --color-mint: #e2f3ec;         /* selección / fondos activos */
+  --color-mint-strong: #b9eed0;  /* degradado del hero del sitio */
+  --color-aqua: #c8f1ea;
+  --color-emerald: #059669;      /* estados activos */
+  --color-line: #e7e5dc;
+  --color-muted: #4b5563;
+  --color-faint: #9ca3af;
+  --color-danger-bg: #fdecec;
+  --color-danger: #b42318;
+  --color-warn-bg: #fdf4e3;
+  --color-warn: #a15c07;
+}
+
+html, body { background: var(--color-cream); color: var(--color-ink); }
+.label { @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-faint; }
+.card { @apply rounded-2xl border border-line bg-white; }
+.pill { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold; }
+
+/* Firma visual del sitio: degradado menta con círculos de línea blanca */
+.hero-gradient {
+  background:
+    radial-gradient(circle at 18% 120%, transparent 0 118px, rgb(255 255 255 / 0.55) 119px 120.5px, transparent 121.5px),
+    radial-gradient(circle at 62% -40%, transparent 0 150px, rgb(255 255 255 / 0.5) 151px 152.5px, transparent 153.5px),
+    radial-gradient(circle at 105% 60%, transparent 0 170px, rgb(255 255 255 / 0.45) 171px 172.5px, transparent 173.5px),
+    linear-gradient(120deg, #b9eed0 0%, #d4f5ec 55%, #c8f1ea 100%);
+}
+dialog[open] { animation: pop .16s ease-out; }
+@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+select { appearance: none; -webkit-appearance: none; padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+::-webkit-scrollbar { height: 8px; width: 8px; }
+::-webkit-scrollbar-thumb { background: #dcd9cf; border-radius: 99px; }
