@@ -10,8 +10,15 @@ import { users } from "@/db/shared";
 // En producción no hay respaldo: Auth.js falla si falta el secreto, que es lo correcto.
 const secret = process.env.AUTH_SECRET || (process.env.NODE_ENV !== "production" ? "solo-desarrollo-ziora-ops-no-usar-en-produccion" : undefined);
 
+// Las cookies no distinguen puertos: en localhost, Event Ops (:3000) y Ziora Ops (:3001) compartirían
+// "authjs.session-token" con secretos distintos ("no matching decryption secret"). En desarrollo usamos un nombre propio.
+const devCookies = process.env.NODE_ENV !== "production"
+  ? { sessionToken: { name: "ziora-ops.session-token" } }
+  : undefined;
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret,
+  cookies: devCookies,
   providers: [Google],
   session: { strategy: "jwt" },
   pages: { signIn: "/login", error: "/login" },
