@@ -288,3 +288,355 @@ export const goals = ops.table("goals", {
   position: integer("position").notNull().default(0),
   ...timestamps(),
 });
+
+// ---------- equipo: roles funcionales de Ziora Ops ----------
+// public.users.role (admin/operator/volunteer) es de Event Ops. Estos roles son propios de Ziora Ops
+// y deciden qué ve y qué puede hacer cada persona. Una persona puede tener varios.
+export const opsRoleEnum = ops.enum("ops_role", ["ceo", "sales", "clinical_director", "marketing", "operations", "dev_qa"]);
+
+export const memberRoles = ops.table(
+  "member_roles",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    role: opsRoleEnum("role").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.role] })],
+);
+
+// ---------- marketing: revisión de contenido y sugerencias ----------
+// Una pieza se publica solo con la aprobación de cada rol revisor (CEO, director clínico y ventas)
+// más la checklist legal. La última decisión de cada persona reemplaza a la anterior.
+export const reviewDecisionEnum = ops.enum("review_decision", ["approved", "changes_requested"]);
+
+export const contentReviews = ops.table(
+  "content_reviews",
+  {
+    id: id(),
+    pieceId: uuid("piece_id").notNull().references(() => contentPieces.id, { onDelete: "cascade" }),
+    reviewerId: uuid("reviewer_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    decision: reviewDecisionEnum("decision").notNull(),
+    comment: text("comment"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("content_reviews_piece_reviewer_unique").on(t.pieceId, t.reviewerId)],
+);
+
+// Sugerencias de contenido de cualquier persona del equipo. No son tareas: marketing las revisa
+// y, si las acepta, se crean la pieza en el calendario y la tarea de publicación.
+export const suggestionStatusEnum = ops.enum("suggestion_status", ["new", "accepted", "rejected"]);
+
+export const contentSuggestions = ops.table(
+  "content_suggestions",
+  {
+    id: id(),
+    title: text("title").notNull(),
+    idea: text("idea").notNull(),
+    why: text("why"),
+    channel: contentChannelEnum("channel"),
+    referenceUrl: text("reference_url"),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    status: suggestionStatusEnum("status").notNull().default("new"),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decisionNote: text("decision_note"),
+    pieceId: uuid("piece_id").references(() => contentPieces.id, { onDelete: "set null" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (t) => [index("content_suggestions_status_idx").on(t.status)],
+);
+
+// ---------- producto: tickets (cambios, mejoras y errores) en formato historia de usuario ----------
+// Los levanta el equipo (director clínico, ventas…) o llegan de "Ayuda y sugerencias" de la app.
+// Dev/QA los evalúa (impacto, esfuerzo, viabilidad) y, si se planean, se crea la tarea.
+export const ticketKindEnum = ops.enum("ticket_kind", ["bug", "change", "feature"]);
+export const ticketOriginEnum = ops.enum("ticket_origin", ["team", "ziora_app_help"]);
+export const ticketStatusEnum = ops.enum("ticket_status", ["new", "evaluating", "planned", "in_progress", "done", "rejected"]);
+export const viabilityEnum = ops.enum("viability", ["pending", "viable", "not_viable", "needs_info"]);
+export const effortEnum = ops.enum("effort", ["s", "m", "l", "xl"]);
+
+export const tickets = ops.table(
+  "tickets",
+  {
+    id: id(),
+    number: serial("number").notNull().unique(), // TKT-<number>
+    kind: ticketKindEnum("kind").notNull().default("change"),
+    origin: ticketOriginEnum("origin").notNull().default("team"),
+    title: text("title").notNull(),
+    // Historia de usuario: Como <asA>, quiero <iWant>, para <soThat>.
+    asA: text("as_a"),
+    iWant: text("i_want"),
+    soThat: text("so_that"),
+    // "Sabremos que está listo cuando…": un criterio por elemento.
+    acceptanceCriteria: text("acceptance_criteria").array().notNull().default(sql`'{}'::text[]`),
+    // Texto original (mensaje del usuario de la app o contexto libre del equipo).
+    context: text("context"),
+    area: text("area"),
+    category: text("category"), // categoría que eligió el usuario en la app
+    impact: integer("impact"), // 1 a 5
+    effort: effortEnum("effort"),
+    viability: viabilityEnum("viability").notNull().default("pending"),
+    decisionNote: text("decision_note"),
+    status: ticketStatusEnum("status").notNull().default("new"),
+    reporterId: uuid("reporter_id").references(() => users.id, { onDelete: "set null" }),
+    reporterEmail: text("reporter_email"), // terapeuta que escribió desde la app
+    assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    externalId: text("external_id"), // id del documento en Firestore
+    appVersion: text("app_version"),
+    pageUrl: text("page_url"),
+    bugId: uuid("bug_id").references(() => bugs.id, { onDelete: "set null" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (t) => [
+    index("tickets_status_idx").on(t.status),
+    uniqueIndex("tickets_origin_external_unique").on(t.origin, t.externalId).where(sql`${t.externalId} is not null`),
+  ],
+);
+
+// ---------- ventas B2B: cuentas, oportunidades y contratos ----------
+// ziora_ops solo puede LEER public.organizations, así que las cuentas viven aquí.
+// organizationId enlaza (sin FK) con la organización de Event Ops cuando existe.
+export const accountTypeEnum = ops.enum("account_type", ["clinic", "university", "hospital", "institution", "other"]);
+export const dealStageEnum = ops.enum("deal_stage", ["prospect", "meeting", "proposal", "negotiation", "won", "lost"]);
+export const contractStatusEnum = ops.enum("contract_status", ["draft", "sent", "signed", "active", "expired", "cancelled"]);
+export const billingPeriodEnum = ops.enum("billing_period", ["monthly", "annual", "one_time"]);
+
+export const accounts = ops.table("accounts", {
+  id: id(),
+  name: text("name").notNull(),
+  type: accountTypeEnum("type").notNull().default("clinic"),
+  city: text("city"),
+  website: text("website"),
+  organizationId: uuid("organization_id"),
+  ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  therapistsCount: integer("therapists_count"), // tamaño: cuántos terapeutas tiene
+  notes: text("notes"),
+  ...timestamps(),
+});
+
+export const accountContacts = ops.table(
+  "account_contacts",
+  {
+    accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    contactId: uuid("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+    title: text("title"), // Directora, Coordinador clínico…
+    decisionMaker: boolean("decision_maker").notNull().default(false),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.contactId] })],
+);
+
+export const deals = ops.table(
+  "deals",
+  {
+    id: id(),
+    accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    stage: dealStageEnum("stage").notNull().default("prospect"),
+    seats: integer("seats"), // licencias
+    amountMxn: integer("amount_mxn"), // valor estimado del contrato
+    billingPeriod: billingPeriodEnum("billing_period").notNull().default("monthly"),
+    expectedCloseOn: date("expected_close_on"),
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    lostReason: text("lost_reason"),
+    stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    notes: text("notes"),
+    ...timestamps(),
+  },
+  (t) => [index("deals_stage_idx").on(t.stage)],
+);
+
+export const contracts = ops.table(
+  "contracts",
+  {
+    id: id(),
+    number: serial("number").notNull().unique(), // CTR-<number>
+    accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    seats: integer("seats"),
+    pricePerSeatMxn: integer("price_per_seat_mxn"),
+    amountMxn: integer("amount_mxn").notNull().default(0), // por periodo de cobro
+    billingPeriod: billingPeriodEnum("billing_period").notNull().default("monthly"),
+    startsOn: date("starts_on"),
+    endsOn: date("ends_on"),
+    autoRenew: boolean("auto_renew").notNull().default(false),
+    status: contractStatusEnum("status").notNull().default("draft"),
+    signedOn: date("signed_on"),
+    documentUrl: text("document_url"),
+    notes: text("notes"),
+    ...timestamps(),
+  },
+  (t) => [index("contracts_status_idx").on(t.status), index("contracts_ends_on_idx").on(t.endsOn)],
+);
+
+// ---------- Ziora Copilot (Firebase): usuarios, planes y pacientes ----------
+// Copia de solo lectura que llena /api/jobs/sync-ziora-users. Por privacidad, de los pacientes
+// SOLO se guarda el conteo: nunca nombres, notas ni ningún dato clínico.
+export const appUsers = ops.table(
+  "app_users",
+  {
+    uid: text("uid").primaryKey(), // uid de Firebase Auth
+    email: text("email").notNull(),
+    name: text("name"),
+    plan: text("plan").notNull(), // tal cual lo guarda la app: free, pro, clinic…
+    status: text("status").notNull(), // active, trialing, past_due, cancelled…
+    signedUpAt: timestamp("signed_up_at", { withTimezone: true }),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
+    patientCount: integer("patient_count").notNull().default(0),
+    sessionsLast30d: integer("sessions_last_30d").notNull().default(0),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }), // si pertenece a una clínica cliente
+    firstSyncedAt: timestamp("first_synced_at", { withTimezone: true }).notNull().defaultNow(),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+    removedAt: timestamp("removed_at", { withTimezone: true }), // ya no viene en el snapshot (cuenta borrada)
+  },
+  (t) => [index("app_users_plan_idx").on(t.plan), uniqueIndex("app_users_email_unique").on(t.email)],
+);
+
+// Foto diaria agregada por plan para ver tendencias (sin datos por persona).
+export const appUserDaily = ops.table(
+  "app_user_daily",
+  {
+    day: date("day").notNull(),
+    plan: text("plan").notNull(),
+    users: integer("users").notNull(),
+    active: integer("active").notNull(),
+    paying: integer("paying").notNull(),
+    patients: integer("patients").notNull(),
+    estimatedMrrMxn: integer("estimated_mrr_mxn").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.plan] })],
+);
+
+// Precio de cada plan para el MRR estimado, mientras se conecta la fuente real de pagos.
+export const planPrices = ops.table("plan_prices", {
+  plan: text("plan").primaryKey(),
+  label: text("label").notNull(),
+  priceMxn: integer("price_mxn").notNull().default(0),
+  billingPeriod: billingPeriodEnum("billing_period").notNull().default("monthly"),
+  paying: boolean("paying").notNull().default(true), // free/trial = false
+  ...timestamps(),
+});
+
+// ---------- seguimiento 1:1 (director clínico, ventas) ----------
+// Una fila = un seguimiento agendado; al completarlo se registra el resultado y, si hace falta, el siguiente.
+export const followupChannelEnum = ops.enum("followup_channel", ["call", "whatsapp", "email", "video", "in_person"]);
+export const followupStatusEnum = ops.enum("followup_status", ["pending", "done", "cancelled"]);
+export const healthEnum = ops.enum("health", ["green", "yellow", "red"]);
+
+export const followups = ops.table(
+  "followups",
+  {
+    id: id(),
+    title: text("title").notNull(),
+    appUserUid: text("app_user_uid").references(() => appUsers.uid, { onDelete: "set null" }),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "cascade" }),
+    demoId: uuid("demo_id").references(() => demoRequests.id, { onDelete: "set null" }),
+    channel: followupChannelEnum("channel").notNull().default("call"),
+    dueOn: date("due_on").notNull(),
+    status: followupStatusEnum("status").notNull().default("pending"),
+    reason: text("reason").notNull().default("manual"), // manual | paying_inactive | trial_ending
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    outcome: text("outcome"),
+    health: healthEnum("health"),
+    nextAction: text("next_action"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [
+    index("followups_status_due_idx").on(t.status, t.dueOn),
+    // Una sola sugerencia automática pendiente por usuario y motivo.
+    uniqueIndex("followups_auto_unique").on(t.appUserUid, t.reason).where(sql`${t.status} = 'pending' and ${t.reason} <> 'manual'`),
+  ],
+);
+
+// ---------- marketing: redes sociales y campañas pagadas ----------
+// Se llenan con /api/jobs/sync-social (API de Meta) o con importación CSV (TikTok, LinkedIn,
+// agregadores como Windsor.ai o Supermetrics). Montos en centavos de MXN para no perder precisión.
+export const socialPlatformEnum = ops.enum("social_platform", ["instagram", "facebook", "tiktok", "linkedin"]);
+
+export const socialAccounts = ops.table(
+  "social_accounts",
+  {
+    id: id(),
+    platform: socialPlatformEnum("platform").notNull(),
+    handle: text("handle").notNull(), // @ziora.mx
+    externalId: text("external_id"), // id de la cuenta en la plataforma (IG user id, page id…)
+    adAccountId: text("ad_account_id"), // act_123… para campañas
+    tokenEncrypted: text("token_encrypted"), // AES-256-GCM con SOCIAL_TOKEN_KEY; nunca se muestra
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("social_accounts_platform_handle_unique").on(t.platform, t.handle)],
+);
+
+export const socialDaily = ops.table(
+  "social_daily",
+  {
+    accountId: uuid("account_id").notNull().references(() => socialAccounts.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    followers: integer("followers"),
+    reach: integer("reach"),
+    impressions: integer("impressions"),
+    engagements: integer("engagements"),
+    profileViews: integer("profile_views"),
+    linkClicks: integer("link_clicks"),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.day] })],
+);
+
+export const socialPosts = ops.table(
+  "social_posts",
+  {
+    id: id(),
+    accountId: uuid("account_id").notNull().references(() => socialAccounts.id, { onDelete: "cascade" }),
+    externalId: text("external_id").notNull(),
+    url: text("url"),
+    caption: text("caption"),
+    mediaType: text("media_type"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    reach: integer("reach"),
+    views: integer("views"),
+    likes: integer("likes"),
+    comments: integer("comments"),
+    shares: integer("shares"),
+    saves: integer("saves"),
+    contentPieceId: uuid("content_piece_id").references(() => contentPieces.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("social_posts_account_external_unique").on(t.accountId, t.externalId)],
+);
+
+export const adCampaigns = ops.table(
+  "ad_campaigns",
+  {
+    id: id(),
+    platform: socialPlatformEnum("platform").notNull(),
+    externalId: text("external_id").notNull(),
+    accountId: uuid("account_id").references(() => socialAccounts.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    objective: text("objective"),
+    status: text("status"),
+    // Valor de utm_campaign con el que llegan las demos de esta campaña (atribución real).
+    utmCampaign: text("utm_campaign"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("ad_campaigns_platform_external_unique").on(t.platform, t.externalId)],
+);
+
+export const adDaily = ops.table(
+  "ad_daily",
+  {
+    campaignId: uuid("campaign_id").notNull().references(() => adCampaigns.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    spendCents: integer("spend_cents").notNull().default(0),
+    impressions: integer("impressions").notNull().default(0),
+    clicks: integer("clicks").notNull().default(0),
+    leads: integer("leads").notNull().default(0), // lo que reporta la plataforma
+    conversions: integer("conversions").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.day] })],
+);

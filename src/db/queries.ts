@@ -1,8 +1,9 @@
-import { and, asc, count, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, count, eq, inArray, lte, ne } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
-import { bugs, demoRequests, epics, pullRequests, sprints, tasks } from "@/db/schema";
+import { bugs, contentPieces, contentSuggestions, demoRequests, epics, followups, pullRequests, sprints, tasks, tickets } from "@/db/schema";
 import { users } from "@/db/shared";
+import { todayISO } from "@/lib/format";
 
 export const listUsers = cache(() =>
   db.select({ id: users.id, name: users.name, email: users.email, role: users.role, active: users.active })
@@ -19,13 +20,17 @@ export const activeSprint = cache(async () => {
 });
 
 export const navCounts = cache(async () => {
-  const [[t], [d], [b], [p]] = await Promise.all([
+  const [[t], [d], [b], [p], [r], [sg], [tk], [fu]] = await Promise.all([
     db.select({ n: count() }).from(tasks).where(and(ne(tasks.status, "done"), ne(tasks.status, "backlog"))),
     db.select({ n: count() }).from(demoRequests).where(inArray(demoRequests.stage, ["requested", "scheduled"])),
     db.select({ n: count() }).from(bugs).where(inArray(bugs.status, ["new", "triaged", "in_progress"])),
     db.select({ n: count() }).from(pullRequests).where(eq(pullRequests.state, "open")),
+    db.select({ n: count() }).from(contentPieces).where(eq(contentPieces.status, "legal_review")),
+    db.select({ n: count() }).from(contentSuggestions).where(eq(contentSuggestions.status, "new")),
+    db.select({ n: count() }).from(tickets).where(eq(tickets.status, "new")),
+    db.select({ n: count() }).from(followups).where(and(eq(followups.status, "pending"), lte(followups.dueOn, todayISO()))),
   ]);
-  return { tasks: t.n, demos: d.n, bugs: b.n, prs: p.n };
+  return { tasks: t.n, demos: d.n, bugs: b.n, prs: p.n, reviews: r.n, suggestions: sg.n, tickets: tk.n, followups: fu.n };
 });
 
 export type UserOption = Awaited<ReturnType<typeof listUsers>>[number];

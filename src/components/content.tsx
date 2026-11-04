@@ -1,9 +1,10 @@
 import { createPiece, updatePiece } from "@/actions/content";
 import { Badge, Field, inputCls, Select, cn } from "@/components/ui";
 import { ActionForm, Modal, Submit } from "@/components/ui/form";
+import type { PieceReview } from "@/db/content-review";
 import type { UserOption } from "@/db/queries";
 import type { contentPieces } from "@/db/schema";
-import { CONTENT_CHANNEL, CONTENT_PILLAR, CONTENT_STATUS, LEGAL_CHECKLIST, RISK } from "@/lib/labels";
+import { CONTENT_CHANNEL, CONTENT_PILLAR, CONTENT_STATUS, LEGAL_CHECKLIST, OPS_ROLE, RISK } from "@/lib/labels";
 
 type Piece = typeof contentPieces.$inferSelect;
 
@@ -28,10 +29,11 @@ function PieceFields({ p, users }: { p?: Piece; users: UserOption[] }) {
       <Field label="Responsable"><Select name="ownerId" defaultValue={p?.ownerId} placeholder="Sin asignar" options={users.map((u) => [u.id, u.name])} /></Field>
       <Field label="Copy"><textarea name="copy" rows={4} defaultValue={p?.copy ?? ""} className={inputCls} /></Field>
       <Field label="Fuentes" hint="Una por línea. Obligatorio para cifras: fuente y país."><textarea name="sources" rows={2} defaultValue={p?.sources.join("\n")} className={inputCls} placeholder="APA Practitioner Pulse 2025 (EE. UU.)" /></Field>
+      <Field label="Diseño o video" hint="Enlace a Canva, Drive o Figma para que los revisores vean la pieza final."><input name="assetUrl" type="url" defaultValue={p?.assetUrl ?? ""} className={inputCls} /></Field>
       {p && <Field label="URL publicada"><input name="publishedUrl" type="url" defaultValue={p.publishedUrl ?? ""} className={inputCls} /></Field>}
       <fieldset className="rounded-2xl border border-line bg-white p-4">
         <legend className="px-1 text-xs font-bold text-muted">Checklist legal (sección 5 del brief)</legend>
-        <p className="mb-2 text-[11px] text-faint">Completa toda la lista para aprobar, programar o publicar.</p>
+        <p className="mb-2 text-[11px] text-faint">Completa toda la lista para aprobar, programar o publicar. Para revisión, cambia el estado a &quot;En revisión&quot;.</p>
         <div className="flex flex-col gap-1.5">
           {LEGAL_CHECKLIST.map((item, i) => (
             <label key={i} className="flex items-start gap-2 text-[13px]">
@@ -56,7 +58,14 @@ export function NewPieceButton({ users, defaultOpen }: { users: UserOption[]; de
   );
 }
 
-export function PieceChip({ p, users, full }: { p: Piece; users: UserOption[]; full?: boolean }) {
+export function ReviewBadges({ review }: { review?: PieceReview }) {
+  if (!review) return null;
+  if (review.changesRequested) return <Badge tone="red">Cambios pedidos</Badge>;
+  if (review.complete) return <Badge tone="green">3/3 aprobaciones</Badge>;
+  return <Badge tone="amber">Falta: {review.missingRoles.map((r) => OPS_ROLE[r].label).join(", ")}</Badge>;
+}
+
+export function PieceChip({ p, users, full, review }: { p: Piece; users: UserOption[]; full?: boolean; review?: PieceReview }) {
   return (
     <Modal
       title={p.title}
@@ -71,12 +80,16 @@ export function PieceChip({ p, users, full }: { p: Piece; users: UserOption[]; f
           <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: pillarColor(p.pillar) }} />
           <span className="min-w-0 flex-1">
             <span className={cn("block font-semibold", full ? "" : "line-clamp-2")}>{p.title}</span>
-            <span className="block text-faint">{CONTENT_CHANNEL[p.channel]} · {p.format}</span>
+            <span className="block text-faint">
+              {CONTENT_CHANNEL[p.channel]} · {p.format}
+              {!full && p.status === "legal_review" && review && !review.complete && <span className="ml-1 font-bold text-warn" title="Faltan aprobaciones">· {3 - review.missingRoles.length}/3</span>}
+            </span>
             {full && (
               <span className="mt-1.5 flex flex-wrap gap-1">
                 <Badge tone={CONTENT_STATUS[p.status].tone}>{CONTENT_STATUS[p.status].label}</Badge>
                 {p.risk !== "low" && <Badge tone={RISK[p.risk].tone}>{RISK[p.risk].label}</Badge>}
                 {!p.legalChecklistOk && <Badge tone="gray">Checklist pendiente</Badge>}
+                {p.status === "legal_review" && <ReviewBadges review={review} />}
               </span>
             )}
           </span>

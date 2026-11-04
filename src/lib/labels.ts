@@ -79,7 +79,7 @@ export const CONTENT_CHANNEL = {
 export const CONTENT_STATUS = {
   idea: { label: "Idea", tone: "gray" },
   draft: { label: "Borrador", tone: "gray" },
-  legal_review: { label: "Revisión", tone: "amber" },
+  legal_review: { label: "En revisión", tone: "amber" },
   approved: { label: "Aprobado", tone: "blue" },
   scheduled: { label: "Programado", tone: "lilac" },
   published: { label: "Publicado", tone: "green" },
@@ -119,3 +119,82 @@ export const LEGAL_CHECKLIST = [
   "Sin humor sobre suicidio, crisis ni diagnósticos",
   "CTA vigente según la regla 2.4 (sin \"14 días sin tarjeta\" hasta confirmar)",
 ] as const;
+
+export const OPS_ROLE = {
+  ceo: { label: "CEO", tone: "green" },
+  sales: { label: "Ventas", tone: "amber" },
+  clinical_director: { label: "Director clínico", tone: "blue" },
+  marketing: { label: "Marketing", tone: "lilac" },
+  operations: { label: "Operaciones", tone: "gray" },
+  dev_qa: { label: "Dev / QA", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const SUGGESTION_STATUS = {
+  new: { label: "Nueva", tone: "blue" },
+  accepted: { label: "Aceptada", tone: "green" },
+  rejected: { label: "Descartada", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const TICKET_KIND = {
+  bug: { label: "Algo no funciona", tone: "red" },
+  change: { label: "Cambio", tone: "blue" },
+  feature: { label: "Idea nueva", tone: "lilac" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const TICKET_STATUS = {
+  new: { label: "Nuevo", tone: "blue" },
+  evaluating: { label: "Evaluando", tone: "amber" },
+  planned: { label: "Planeado", tone: "lilac" },
+  in_progress: { label: "En curso", tone: "blue" },
+  done: { label: "Listo", tone: "green" },
+  rejected: { label: "No se hará", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const VIABILITY = {
+  pending: { label: "Sin evaluar", tone: "gray" },
+  viable: { label: "Viable", tone: "green" },
+  not_viable: { label: "No viable", tone: "red" },
+  needs_info: { label: "Falta información", tone: "amber" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const EFFORT = { s: "S · horas", m: "M · 1–2 días", l: "L · semana", xl: "XL · varias semanas" } as const;
+
+export const TICKET_ORIGIN = { team: "Equipo", ziora_app_help: "App · Ayuda y sugerencias" } as const;
+
+export const ACCOUNT_TYPE = {
+  clinic: "Clínica", university: "Universidad", hospital: "Hospital", institution: "Institución", other: "Otro",
+} as const;
+
+export const DEAL_STAGE = {
+  prospect: { label: "Prospecto", tone: "gray" },
+  meeting: { label: "Reunión", tone: "blue" },
+  proposal: { label: "Propuesta", tone: "lilac" },
+  negotiation: { label: "Negociación", tone: "amber" },
+  won: { label: "Ganada", tone: "green" },
+  lost: { label: "Perdida", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const CONTRACT_STATUS = {
+  draft: { label: "Borrador", tone: "gray" },
+  sent: { label: "Enviado", tone: "blue" },
+  signed: { label: "Firmado", tone: "lilac" },
+  active: { label: "Activo", tone: "green" },
+  expired: { label: "Vencido", tone: "red" },
+  cancelled: { label: "Cancelado", tone: "gray" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const BILLING_PERIOD = { monthly: "Mensual", annual: "Anual", one_time: "Pago único" } as const;
+
+export const FOLLOWUP_CHANNEL = { call: "Llamada", whatsapp: "WhatsApp", email: "Correo", video: "Videollamada", in_person: "En persona" } as const;
+
+export const HEALTH = {
+  green: { label: "Bien", tone: "green" },
+  yellow: { label: "Atención", tone: "amber" },
+  red: { label: "En riesgo", tone: "red" },
+} as const satisfies Record<string, { label: string; tone: Tone }>;
+
+export const FOLLOWUP_REASON: Record<string, string> = {
+  manual: "Agendado", paying_inactive: "Sugerido: pago sin actividad", trial_ending: "Sugerido: trial por vencer",
+};
+
+export const SOCIAL_PLATFORM = { instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", linkedin: "LinkedIn" } as const;

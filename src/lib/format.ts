@@ -39,3 +39,8 @@ export function waLink(phone: string | null | undefined, text?: string) {
 export function pct(n: number, d: number) {
   return d === 0 ? 0 : Math.round((n / d) * 100);
 }
+
+export function money(n: number | null | undefined) {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n);
+}

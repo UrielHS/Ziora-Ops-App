@@ -3,30 +3,46 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bug, CalendarDays, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Users, Video,
+  BarChart3, Building2, Bug, HeartPulse, PhoneCall, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Target, Ticket, Users, Video,
 } from "lucide-react";
 import { Avatar, cn } from "@/components/ui";
+import { can, type Access, type Permission } from "@/lib/permissions";
 
-type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; shared?: boolean; count?: number };
+type Item = {
+  href: string; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  shared?: boolean; count?: number; perm?: Permission;
+};
 
-export function Sidebar({ user, counts }: { user: { name: string; role: string }; counts: Record<string, number> }) {
+export function Sidebar({
+  user, counts, access,
+}: { user: { name: string; roleLabel: string }; counts: Record<string, number>; access: Access }) {
   const path = usePathname();
-  const groups: { label: string; items: Item[] }[] = [
+  const all: { label: string; items: Item[] }[] = [
     { label: "Operación", items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/tasks", label: "Tareas", icon: CheckSquare, count: counts.tasks },
     ] },
     { label: "Ventas", items: [
+      { href: "/sales", label: "Cuentas y contratos", icon: Building2, perm: "sales.view" },
       { href: "/demos", label: "Demos", icon: Video, count: counts.demos },
       { href: "/contacts", label: "Contactos", icon: Users, shared: true },
     ] },
+    { label: "Clientes", items: [
+      { href: "/customers", label: "Usuarios de Ziora", icon: HeartPulse, perm: "customers.view" },
+      { href: "/followups", label: "Seguimiento 1:1", icon: PhoneCall, count: counts.followups, perm: "followups.manage" },
+    ] },
     { label: "Marketing", items: [
       { href: "/content", label: "Contenido", icon: Megaphone },
-      { href: "/campaigns", label: "Campañas", icon: Mail },
+      { href: "/content/review", label: "Revisión", icon: ClipboardCheck, count: counts.reviews },
+      { href: "/content/suggestions", label: "Sugerencias", icon: Lightbulb, count: counts.suggestions },
+      { href: "/social", label: "Redes sociales", icon: BarChart3, perm: "analytics.view" },
+      { href: "/ads", label: "Anuncios", icon: Target, perm: "analytics.view" },
+      { href: "/campaigns", label: "Correo masivo", icon: Mail },
       { href: "/templates", label: "Plantillas", icon: FileCode2 },
       { href: "/events", label: "Eventos", icon: CalendarDays, shared: true },
     ] },
     { label: "Producto", items: [
+      { href: "/tickets", label: "Tickets", icon: Ticket, count: counts.tickets },
       { href: "/bugs", label: "QA y bugs", icon: Bug, count: counts.bugs },
       { href: "/pull-requests", label: "Pull requests", icon: GitPullRequest, count: counts.prs },
     ] },
@@ -35,7 +51,14 @@ export function Sidebar({ user, counts }: { user: { name: string; role: string }
       { href: "/settings", label: "Ajustes", icon: Settings },
     ] },
   ];
-  const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
+  // Sin roles asignados todavía: se ve todo lo que no exige permiso (Ajustes → Equipo los asigna).
+  const groups = all
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.perm || can(access, i.perm)) }))
+    .filter((g) => g.items.length > 0);
+  // La ruta más específica gana: en /content/review se marca "Revisión", no "Contenido".
+  const hrefs = all.flatMap((g) => g.items.map((i) => i.href));
+  const isActive = (href: string) =>
+    (path === href || path.startsWith(`${href}/`)) && !hrefs.some((h) => h.length > href.length && (path === h || path.startsWith(`${h}/`)));
 
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto px-3 py-5 md:flex">
@@ -77,7 +100,7 @@ export function Sidebar({ user, counts }: { user: { name: string; role: string }
         <Avatar name={user.name} size={30} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{user.name}</p>
-          <p className="text-[11px] capitalize text-faint">{user.role}</p>
+          <p className="truncate text-[11px] text-faint">{user.roleLabel}</p>
         </div>
       </div>
     </aside>

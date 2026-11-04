@@ -8,6 +8,48 @@
       "when": 1792391923891,
       "tag": "0000_init_ops",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793726498658,
+      "tag": "0001_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793726847027,
+      "tag": "0002_content_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793727558389,
+      "tag": "0003_tickets",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793727980882,
+      "tag": "0004_sales",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793728322684,
+      "tag": "0005_app_users_followups",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793729674418,
+      "tag": "0006_social_ads",
+      "breakpoints": true
     }
   ]
 }

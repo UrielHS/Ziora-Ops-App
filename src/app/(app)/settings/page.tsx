@@ -1,17 +1,29 @@
 import { asc } from "drizzle-orm";
 import { CheckCircle2, CircleDashed, ExternalLink } from "lucide-react";
+import { setMemberRoles } from "@/actions/team";
 import { createEpic } from "@/actions/tasks";
 import { Avatar, Badge, btn, Card, Field, inputCls, PageHeader, PanelHeader } from "@/components/ui";
 import { ActionForm, Modal, Submit } from "@/components/ui/form";
 import { CopyButton } from "@/components/ui/copy";
 import { db } from "@/db";
 import { listEpics } from "@/db/queries";
+import { memberRoles } from "@/db/schema";
 import { users } from "@/db/shared";
+import { OPS_ROLE } from "@/lib/labels";
+import { ALL_ROLES, can } from "@/lib/permissions";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [team, epics] = await Promise.all([db.select().from(users).orderBy(asc(users.name)), listEpics()]);
+  const [team, epics, roleRows, access] = await Promise.all([
+    db.select().from(users).orderBy(asc(users.name)),
+    listEpics(),
+    db.select().from(memberRoles),
+    requireAccess(),
+  ]);
+  const rolesOf = (userId: string) => roleRows.filter((r) => r.userId === userId).map((r) => r.role);
+  const canManageTeam = can(access, "team.manage");
   const app = process.env.APP_URL ?? "http://localhost:3001";
   const eventOps = process.env.EVENT_OPS_URL ?? "https://event-ops-845770051786.us-central1.run.app";
   const integrations = [
@@ -29,6 +41,14 @@ export default async function SettingsPage() {
     },
     { name: "Webhook de demos (otras fuentes)", ok: !!process.env.DEMO_WEBHOOK_SECRET, detail: "Opcional; firma HMAC", hook: `${app}/api/webhooks/demo` },
     { name: "Reporte de bugs desde la app", ok: !!process.env.BUG_INTAKE_KEY, detail: "Authorization: Bearer BUG_INTAKE_KEY", hook: `${app}/api/bugs` },
+    {
+      name: "Usuarios de Ziora Copilot (Firebase)",
+      ok: !!(process.env.ZIORA_APP_SNAPSHOT_URL && process.env.ZIORA_APP_BRIDGE_SECRET),
+      detail: process.env.ZIORA_APP_SNAPSHOT_URL ? "opsSnapshot cada hora · solo conteos de pacientes" : "Falta desplegar opsSnapshot (docs/PUENTE-ZIORA-APP.md)",
+      hook: `${app}/api/jobs/sync-ziora-users`,
+    },
+    { name: "Redes y anuncios (Meta)", ok: !!process.env.SOCIAL_TOKEN_KEY, detail: process.env.SOCIAL_TOKEN_KEY ? "Tokens por cuenta en Redes sociales · cada mañana" : "Falta SOCIAL_TOKEN_KEY (docs/REDES-Y-ANUNCIOS.md)", hook: `${app}/api/jobs/sync-social` },
+    { name: "Ayuda y sugerencias de la app", ok: !!process.env.ZIORA_APP_BRIDGE_SECRET, detail: "Trigger opsHelpRequest → tickets; firma X-Ops-Signature", hook: `${app}/api/webhooks/ziora-help` },
   ];
 
   return (
@@ -52,13 +72,36 @@ export default async function SettingsPage() {
       </Card>
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <PanelHeader title="Equipo" subtitle="Se administra en Event Ops (Settings → Users). Quien está activo allá entra aquí." action={<a href={`${eventOps}/settings`} target="_blank" className={btn("ghost", "sm")}>Event Ops <ExternalLink className="h-3 w-3" /></a>} />
+          <PanelHeader title="Equipo" subtitle="Las cuentas se dan de alta en Event Ops (Settings → Users). Los roles de Ziora Ops se asignan aquí." action={<a href={`${eventOps}/settings`} target="_blank" className={btn("ghost", "sm")}>Event Ops <ExternalLink className="h-3 w-3" /></a>} />
           <div className="mt-2">
             {team.map((u) => (
               <div key={u.id} className="flex items-center gap-3 border-b border-[#EFEDE6] px-5 py-2.5 last:border-b-0">
                 <Avatar name={u.name} size={28} />
-                <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{u.name}</span><span className="block truncate text-xs text-muted">{u.email}</span></span>
-                <Badge tone={u.active ? "green" : "gray"}>{u.active ? u.role : "inactivo"}</Badge>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">{u.name}</span>
+                  <span className="block truncate text-xs text-muted">{u.email}</span>
+                  <span className="mt-1 flex flex-wrap gap-1">
+                    {!u.active && <Badge tone="gray">inactivo</Badge>}
+                    {rolesOf(u.id).map((r) => <Badge key={r} tone={OPS_ROLE[r].tone}>{OPS_ROLE[r].label}</Badge>)}
+                    {u.active && rolesOf(u.id).length === 0 && <span className="text-[11px] text-faint">Sin rol</span>}
+                  </span>
+                </span>
+                {canManageTeam && (
+                  <Modal trigger="Roles" title={`Roles de ${u.name}`} triggerClass={btn("ghost", "sm")}>
+                    <ActionForm action={setMemberRoles}>
+                      <input type="hidden" name="userId" value={u.id} />
+                      <div className="flex flex-col gap-2">
+                        {ALL_ROLES.map((r) => (
+                          <label key={r} className="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="roles[]" value={r} defaultChecked={rolesOf(u.id).includes(r)} className="h-4 w-4 accent-[#059669]" />
+                            {OPS_ROLE[r].label}
+                          </label>
+                        ))}
+                      </div>
+                      <Submit>Guardar</Submit>
+                    </ActionForm>
+                  </Modal>
+                )}
               </div>
             ))}
           </div>

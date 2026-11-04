@@ -31,6 +31,9 @@ Integraciones: Resend (correo) y Octokit (GitHub).
 | `POST /api/jobs/sync-github` | Resincronización de PRs (Cloud Scheduler) | Bearer `JOB_SECRET` |
 | `POST /api/jobs/sync-demos` | Lee demos del Google Calendar del CEO (cada 10 min) | Bearer `JOB_SECRET` |
 | `POST /api/jobs/send-campaign` | Envía una campaña | Bearer `JOB_SECRET` |
+| `POST /api/jobs/sync-ziora-users` | Usuarios, planes y conteos de la app (cada hora) y seguimientos sugeridos | Bearer `JOB_SECRET` |
+| `POST /api/jobs/sync-social` | Métricas de Instagram, Facebook y Meta Ads (diario) | Bearer `JOB_SECRET` |
+| `POST /api/webhooks/ziora-help` | "Ayuda y sugerencias" de la app → tickets | HMAC `X-Ops-Signature` |
 | `GET /api/health` | Conexión a la BD y a ambos schemas | Pública, sin datos |
 
 ## Verlo funcionando en tu PC (5 minutos)
@@ -52,7 +55,15 @@ en producción se ignora y el login es con Google.
 
 | Apartado | Qué hace |
 |---|---|
-| Dashboard | Bloqueos, KPIs, pipeline, sprint, PRs, bugs, próxima campaña y metas GTM; filtro por vista |
+| Dashboard | "Mi día" según el rol, bloqueos, KPIs, pipeline, sprint, PRs, bugs, próxima campaña y metas GTM |
+| Cuentas y contratos | Clínicas e instituciones: pipeline ponderado, contratos, MRR B2B y alertas de renovación |
+| Usuarios de Ziora | Usuarios de la app por plan, actividad, pacientes (solo el número) y MRR estimado |
+| Seguimiento 1:1 | Demos de la semana con resultado en un clic, seguimientos agendados y sugeridos |
+| Revisión | Cada pieza necesita aprobación de CEO, director clínico y ventas + checklist legal |
+| Sugerencias | Ideas de contenido del equipo; al aceptarlas se crean la pieza y la tarea |
+| Redes sociales | Seguidores, alcance e interacción por red; mejores publicaciones |
+| Anuncios | Gasto, CPL y costo real por demo y por cliente (UTM) |
+| Tickets | Cambios e ideas como historia de usuario, con impacto, esfuerzo y viabilidad |
 | Tareas | Tablero con arrastrar y soltar, lista, filtros por sprint/épica/persona, sprints, bloqueos |
 | Demos | Pipeline arrastrable, embudo, registro manual, WhatsApp, trial día X/14, tarea de seguimiento |
 | Contactos | Base compartida con Event Ops, filtros, etiquetas, permiso de correo con evidencia |
@@ -64,6 +75,29 @@ en producción se ignora y el login es con Google.
 | Pull requests | PRs por repo con revisión y CI; sincronización manual o por webhook |
 | Métricas | Metas día 30/60/90 (manuales o automáticas), demos por semana, embudo, contenido y correo |
 | Ajustes | Estado de integraciones con URLs de webhooks, equipo (desde Event Ops) y épicas |
+
+## Roles
+
+Cada persona tiene uno o más roles de Ziora Ops (Ajustes → Equipo): CEO, Ventas, Director clínico, Marketing,
+Operaciones y Dev/QA. Deciden el menú, los permisos (`src/lib/permissions.ts`) y el bloque "Mi día".
+Un admin de Event Ops puede todo.
+
+## Guías
+
+- `docs/SETUP-CONEXION.md`: base compartida, login, correo, GitHub y calendario de demos.
+- `docs/PUENTE-ZIORA-APP.md`: usuarios y "Ayuda y sugerencias" desde Firebase (con la función de referencia en `docs/firebase/`).
+- `docs/REDES-Y-ANUNCIOS.md`: Meta, importación CSV de TikTok/LinkedIn y atribución por UTM.
+
+## Sin Docker
+
+```bash
+npm run db:local          # Postgres embebido (PGlite) en :5433; datos en dev/.pglite
+# en .env: DB_POOL_MAX=1 (PGlite atiende una conexión a la vez)
+npm run db:setup && npm run dev
+```
+
+Las pruebas con base (`RUN_DB_TESTS=1 npm run test:db`) escriben datos: córrelas contra una base aparte,
+no contra la que usas para ver la app.
 
 ## Comandos
 
@@ -77,9 +111,13 @@ npm run db:migrate
 
 ## Estado
 
-Hecho: todos los apartados funcionales sobre la base real, webhooks, envío de campañas con consentimiento y sincronización de PRs.
+Hecho: todos los apartados funcionales sobre la base real, webhooks, envío de campañas con consentimiento, sincronización de PRs,
+roles, ventas B2B, seguimiento 1:1, revisión y sugerencias de contenido, tickets, puente con la app y redes/anuncios.
 
 Siguiente:
+- Desplegar las funciones `opsSnapshot` y `opsHelpRequest` en Firebase (`docs/PUENTE-ZIORA-APP.md`).
+- Definir la fuente real de ingresos (¿Stripe?) para reemplazar el MRR estimado.
+- Conectores de API de TikTok y LinkedIn cuando aprueben las apps (mientras, CSV).
 - Activar la lectura del calendario del CEO (delegación de dominio, `docs/SETUP-CONEXION.md` §10).
 - Primer despliegue (`docs/SETUP-CONEXION.md`).
 - Adaptador de Sentry (`docs/BUGS.md`).
