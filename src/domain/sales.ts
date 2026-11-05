@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db";
 import { accountContacts, accounts, contracts, deals } from "@/db/schema";
 import type { Actor } from "./content";
-import { upsertSharedContact } from "./contacts";
+import { upsertContact } from "./contacts";
 
 type Deal = typeof deals.$inferSelect;
 type Contract = typeof contracts.$inferSelect;
@@ -82,14 +82,14 @@ export async function saveAccount(db: Db, id: string | null, a: AccountInput) {
 
 const ACCOUNT_TAG = { clinic: "clinic", university: "university", hospital: "hospital", institution: "clinic", other: "lead" } as const;
 
-/** Agrega una persona a la cuenta. El contacto se crea o completa en la base compartida con Event Ops. */
+/** Agrega una persona a la cuenta. El contacto se crea o completa en Contactos de Ziora Ops. */
 export async function addAccountContact(
   db: Db, accountId: string,
   p: { name: string; email: string; phone?: string; title?: string; decisionMaker?: boolean },
 ) {
   const [acc] = await db.select({ type: accounts.type }).from(accounts).where(eq(accounts.id, accountId));
   if (!acc) throw new Error("La cuenta ya no existe.");
-  const contactId = await upsertSharedContact(db, {
+  const { id: contactId } = await upsertContact(db, {
     name: p.name, email: p.email, phone: p.phone, source: "manual", tags: [ACCOUNT_TAG[acc.type], "lead"],
   });
   await db.insert(accountContacts)

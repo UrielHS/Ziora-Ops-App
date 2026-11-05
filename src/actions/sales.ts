@@ -42,7 +42,7 @@ const _addAccountContact = formAction(
     await requirePermission("sales.manage");
     await sales.addAccountContact(db, accountId, { ...p, decisionMaker: decisionMaker === "on" });
     revalidatePath("/sales", "layout");
-    return "Contacto agregado (también aparece en Contactos y en Event Ops).";
+    return "Contacto agregado (también aparece en Contactos).";
   },
 );
 

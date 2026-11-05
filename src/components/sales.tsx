@@ -41,7 +41,7 @@ export function ContactFormButton({ accountId, triggerClass }: { accountId: stri
           <Field label="Teléfono / WhatsApp"><input name="phone" className={inputCls} /></Field>
         </div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="decisionMaker" className="h-4 w-4 accent-[#059669]" /> Toma la decisión de compra</label>
-        <p className="text-[11px] text-faint">Se guarda en la base de contactos compartida con Event Ops. Agregarlo no le da permiso para recibir campañas.</p>
+        <p className="text-[11px] text-faint">Se guarda en Contactos. Agregarlo no le da permiso para recibir campañas.</p>
         <Submit>Agregar</Submit>
       </ActionForm>
     </Modal>

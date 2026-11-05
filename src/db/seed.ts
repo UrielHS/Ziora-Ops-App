@@ -103,43 +103,53 @@ async function main() {
     t({ title: "QA de compartir pantalla en iPad", epicId: E("QA"), assigneeId: U("Rafa"), dueOn: dateISO(6) }),
   ]);
 
-  // ---------- contactos ficticios (base compartida) ----------
+  // ---------- contactos ficticios (propios de Ziora Ops) ----------
   const first = ["Andrea", "Mariana", "Daniela", "Fernanda", "Sofía", "Valeria", "Lucía", "Carolina", "Paola", "Ximena", "Diego", "Javier", "Luis", "Rodrigo", "Emilio", "Santiago", "Adriana", "Gabriela", "Renata", "Montserrat", "Alejandro", "Héctor", "Itzel", "Brenda"];
   const last = ["Ruiz", "Hernández", "García", "Martínez", "López", "Gómez", "Torres", "Ramírez", "Flores", "Vargas", "Castillo", "Mendoza", "Ortiz", "Navarro", "Salinas", "Aguilar", "Cervantes", "Ibarra", "Treviño", "Zavala"];
   const cities = ["cdmx", "cdmx", "cdmx", "gdl", "mty", "gdl", "mty", "cdmx"] as const;
-  const sources = ["demo_form", "instagram", "facebook_group", "luma", "manual", "demo_form", "linkedin", "facebook_group"] as const;
+  const sources = ["demo_form", "instagram", "facebook_group", "event_ops", "manual", "demo_form", "linkedin", "facebook_group"] as const;
   const people = Array.from({ length: 46 }, (_, i) => {
     const f = pick(first, i * 7), l = pick(last, i * 3 + 1), l2 = pick(last, i * 5 + 4);
     const title = i % 3 === 0 ? "Dra." : "Psic.";
     return {
       name: `${title} ${f} ${l} ${l2}`, email: `${f}.${l}${i}`.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") + "@example.com",
       phone: `+52 ${i % 3 === 0 ? "33" : i % 3 === 1 ? "55" : "81"} ${String(1000 + i * 37).slice(0, 4)} ${String(2000 + i * 91).slice(0, 4)}`,
-      city: pick([...cities], i), source: pick([...sources], i), type: "person" as const,
+      city: pick([...cities], i), source: pick([...sources], i),
       updatedAt: daysAgo(i % 20), createdAt: daysAgo(10 + (i % 30)),
     };
   });
-  const inserted = await db.insert(shared.contacts).values(people).returning({ id: shared.contacts.id, source: shared.contacts.source, name: shared.contacts.name, email: shared.contacts.email, phone: shared.contacts.phone, city: shared.contacts.city });
-  const tagRows: (typeof shared.contactTags.$inferInsert)[] = [];
+  const inserted = await db.insert(ops.contacts).values(people).returning({ id: ops.contacts.id, source: ops.contacts.source, name: ops.contacts.name, email: ops.contacts.email, phone: ops.contacts.phone, city: ops.contacts.city });
+  const tagRows: (typeof ops.contactTags.$inferInsert)[] = [];
   inserted.forEach((c, i) => {
     tagRows.push({ contactId: c.id, tag: "psychologist" });
     if (["demo_form", "instagram", "facebook_group"].includes(c.source)) tagRows.push({ contactId: c.id, tag: "lead" });
-    if (c.source === "luma") tagRows.push({ contactId: c.id, tag: "attendee" });
+    if (c.source === "event_ops") tagRows.push({ contactId: c.id, tag: "attendee" });
     if (i % 9 === 0) tagRows.push({ contactId: c.id, tag: "ziora_user" });
     if (i % 13 === 0) tagRows.push({ contactId: c.id, tag: "clinic" });
   });
-  // Algunos contactos que solo vienen de Event Ops (no psicólogos)
-  const eo = await db.insert(shared.contacts).values([
-    { name: "Juan Manuel Sánchez", email: "jm.sanchez@example.com", city: "cdmx", source: "manual", type: "person" },
-    { name: "Laura Benítez (Health2Tech)", email: "laura.h2t@example.com", city: "cdmx", source: "ai_tinkerers", type: "person" },
-    { name: "Coworking Roma Norte", email: "eventos.roma@example.com", city: "cdmx", source: "manual", type: "person" },
-  ]).returning({ id: shared.contacts.id });
-  tagRows.push({ contactId: eo[0].id, tag: "university" }, { contactId: eo[1].id, tag: "community_partner" }, { contactId: eo[2].id, tag: "venue" });
-  await db.insert(shared.contactTags).values(tagRows).onConflictDoNothing();
+  await db.insert(ops.contactTags).values(tagRows).onConflictDoNothing();
+
+  // Contactos de Event Ops (public.contacts): asistentes a eventos y aliados. Solo se ven en "Importar de Event Ops".
+  const eoPeople = [
+    ...people.slice(0, 30).map((p) => ({ name: p.name, email: p.email, phone: p.phone, city: p.city, source: "luma" as const, type: "person" as const })),
+    { name: "Juan Manuel Sánchez", email: "jm.sanchez@example.com", city: "cdmx" as const, source: "manual" as const, type: "person" as const },
+    { name: "Laura Benítez (Health2Tech)", email: "laura.h2t@example.com", city: "cdmx" as const, source: "ai_tinkerers" as const, type: "person" as const },
+    { name: "Coworking Roma Norte", email: "eventos.roma@example.com", city: "cdmx" as const, source: "manual" as const, type: "person" as const },
+  ];
+  const eo = await db.insert(shared.eoContacts).values(eoPeople).returning({ id: shared.eoContacts.id });
+  await db.insert(shared.eoContactTags).values([
+    ...eo.slice(0, 30).map((c) => ({ contactId: c.id, tag: "attendee" as const })),
+    { contactId: eo[30].id, tag: "university" as const }, { contactId: eo[31].id, tag: "community_partner" as const }, { contactId: eo[32].id, tag: "venue" as const },
+  ]).onConflictDoNothing();
+  // Los primeros 10 ya se importaron a Ziora Ops (quedan ligados por event_ops_contact_id).
+  for (let i = 0; i < 10; i++) {
+    await db.update(ops.contacts).set({ eventOpsContactId: eo[i].id }).where(sql`${ops.contacts.id} = ${inserted[i].id}`);
+  }
 
   await db.insert(ops.contactConsents).values(
     inserted.filter((_, i) => i % 5 !== 1 && i % 7 !== 3).map((c, i) => ({
-      contactId: c.id, channel: "email", optIn: i !== 4, source: c.source === "luma" ? "evento" : c.source,
-      evidence: c.source === "luma" ? "Casilla de registro en Luma (Ugly Talk)" : c.source === "demo_form" ? "Casilla en ziora-copilot.com/demo" : "Mensaje directo aceptando noticias",
+      contactId: c.id, channel: "email", optIn: i !== 4, source: c.source === "event_ops" ? "evento" : c.source,
+      evidence: c.source === "event_ops" ? "Casilla de registro en Luma (Ugly Talk)" : c.source === "demo_form" ? "Casilla en ziora-copilot.com/demo" : "Mensaje directo aceptando noticias",
       optedInAt: daysAgo(12), optedOutAt: i === 4 ? daysAgo(3) : null,
     })),
   );
@@ -208,7 +218,7 @@ async function main() {
   const demoNight = evRows.find((e) => e.name.startsWith("Demo Night"))!;
   const ugly = evRows.find((e) => e.name.startsWith("Ugly"))!;
   await db.insert(shared.eventContacts).values(
-    inserted.slice(0, 30).map((c, i) => ({ eventId: i % 2 ? demoNight.id : ugly.id, contactId: c.id, roleInEvent: "guest" as const, confirmed: i % 3 === 0 })),
+    eo.slice(0, 30).map((c, i) => ({ eventId: i % 2 ? demoNight.id : ugly.id, contactId: c.id, roleInEvent: "guest" as const, confirmed: i % 3 === 0 })),
   ).onConflictDoNothing();
 
   // ---------- plantillas y campañas ----------

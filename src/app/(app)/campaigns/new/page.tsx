@@ -42,12 +42,12 @@ export default async function NewCampaignPage({ searchParams }: { searchParams: 
           </div>
           <div className="rounded-2xl border border-line bg-white p-4">
             <p className="text-sm font-bold">Segmento</p>
-            <p className="mb-3 text-xs text-muted">Filtros sobre la base compartida con Event Ops. Siempre se excluye a quien no tiene permiso o se dio de baja.</p>
+            <p className="mb-3 text-xs text-muted">Filtros sobre los contactos de Ziora Ops. Siempre se excluye a quien no tiene permiso o se dio de baja.</p>
             <div className="flex flex-col gap-4">
               <Field label="Etiquetas (cualquiera)"><Chips name="tags" selected={["psychologist"]} options={["psychologist", "lead", "clinic", "ziora_user", "attendee", "speaker", "university"].map((t) => [t, CONTACT_TAG[t]])} /></Field>
               <Field label="Ciudades"><Chips name="cities" options={Object.entries(CITY).filter(([k]) => k !== "tbd") as [string, string][]} /></Field>
               <Field label="Origen"><Chips name="sources" options={Object.entries(CONTACT_SOURCE)} /></Field>
-              <Field label="Evento de Event Ops (opcional)" hint="Limita a contactos vinculados a ese evento y habilita {{evento}} en la plantilla">
+              <Field label="Evento de Event Ops (opcional)" hint="Limita a asistentes de ese evento que ya importaste de Event Ops y habilita {{evento}} en la plantilla">
                 <Select name="eventId" defaultValue={sp.event} placeholder="Sin evento" options={evs.map((e) => [e.id, `${e.name} · ${fmtDate(e.date)}`])} />
               </Field>
             </div>

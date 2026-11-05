@@ -3,7 +3,7 @@ import type { Db } from "@/db";
 import { demoRequests } from "@/db/schema";
 import { listDemoEvents } from "@/integrations/google/calendar";
 import { requireEnv } from "@/lib/env";
-import { toCity, upsertSharedContact } from "./contacts";
+import { toCity, upsertContact } from "./contacts";
 import { parseDemoEvent, type ParsedDemoEvent } from "./demo-calendar";
 
 export type DemoInput = {
@@ -22,9 +22,9 @@ export type DemoInput = {
   raw?: Record<string, unknown>;
 };
 
-/** Crea la demo y crea o completa el contacto compartido con Event Ops. Idempotente por externalId. */
+/** Crea la demo y crea o completa el contacto en Ziora Ops. Idempotente por externalId. */
 export async function ingestDemo(db: Db, p: DemoInput) {
-  const contactId = await upsertSharedContact(db, {
+  const { id: contactId } = await upsertContact(db, {
     name: p.fullName,
     email: p.email,
     phone: p.whatsapp,

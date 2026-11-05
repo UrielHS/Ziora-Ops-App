@@ -1,7 +1,7 @@
 import { and, eq, exists, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/db";
-import { campaigns, campaignSends, contactConsents, emailTemplates } from "@/db/schema";
-import { contacts, contactTags, eventContacts, events, type CityValue, type ContactSource, type ContactTag } from "@/db/shared";
+import { campaigns, campaignSends, contactConsents, emailTemplates, contacts, contactTags, type CityValue, type ContactSource, type ContactTag } from "@/db/schema";
+import { eventContacts, events } from "@/db/shared";
 import { sendBatch } from "@/integrations/resend";
 import { unsubscribeToken } from "@/lib/crypto";
 import { requireEnv } from "@/lib/env";
@@ -37,7 +37,8 @@ export async function resolveRecipients(db: Db, campaignId: string) {
     conds.push(
       exists(
         db.select({ one: sql`1` }).from(eventContacts).where(
-          and(eq(eventContacts.contactId, contacts.id), eq(eventContacts.eventId, seg.eventId)),
+          // Asistentes del evento en Event Ops que ya se importaron a Ziora Ops.
+          and(eq(eventContacts.contactId, contacts.eventOpsContactId), eq(eventContacts.eventId, seg.eventId)),
         ),
       ),
     );

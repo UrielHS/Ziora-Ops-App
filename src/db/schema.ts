@@ -6,9 +6,68 @@ import { sql } from "drizzle-orm";
 import {
   boolean, date, index, integer, jsonb, pgSchema, primaryKey, serial, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
-import { contacts, events, users } from "./shared";
+import { events, users } from "./shared";
 
 export const ops = pgSchema("ops");
+
+// ---------- contactos (propios de Ziora Ops) ----------
+// Desde nov-2026 Ziora Ops ya no comparte contactos con Event Ops: tiene los suyos.
+// Los de Event Ops solo se leen para importarlos (copia independiente, ver domain/contacts.ts).
+export const cityEnum = ops.enum("city", ["cdmx", "nyc", "gdl", "mty", "other", "tbd"]);
+export const contactSourceEnum = ops.enum("contact_source", [
+  "manual", "demo_form", "ziora_app", "sheet_import", "csv_import", "event_ops",
+  "facebook_group", "instagram", "linkedin", "referral",
+]);
+export const contactTagEnum = ops.enum("contact_tag", [
+  "psychologist", "lead", "clinic", "ziora_user",
+  "sponsor", "speaker", "founder", "angel", "vc", "community_partner", "influencer",
+  "hospital", "university", "attendee", "vendor",
+]);
+export type CityValue = (typeof cityEnum.enumValues)[number];
+export type ContactSource = (typeof contactSourceEnum.enumValues)[number];
+export type ContactTag = (typeof contactTagEnum.enumValues)[number];
+
+export const contacts = ops.table(
+  "contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email"), // en minúsculas; único cuando existe
+    phone: text("phone"),
+    company: text("company"),
+    jobTitle: text("job_title"), // en la hoja de leads: "Rol"
+    city: cityEnum("city"), // normalizada para filtrar
+    cityName: text("city_name"), // como la escribió la persona ("Ciudad de México", "Cdmx"…)
+    // Perfil del lead (hoja "Leads Ziora MTW", columnas Nombre a Ciudad): mismos valores que la hoja, sin traducir.
+    patientsPerWeek: text("patients_per_week"),
+    approach: text("approach"), // Enfoque terapéutico
+    documentation: text("documentation"), // Cómo documenta hoy
+    aiUsage: text("ai_usage"), // Usa IA
+    linkedinUrl: text("linkedin_url"),
+    website: text("website"),
+    source: contactSourceEnum("source").notNull().default("manual"),
+    notes: text("notes"),
+    // Columnas de la importación que no tienen campo propio (se guardan tal cual vienen en la hoja).
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    eventOpsContactId: uuid("event_ops_contact_id"), // de qué contacto de Event Ops se copió, si aplica
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("contacts_email_unique").on(t.email),
+    uniqueIndex("contacts_event_ops_unique").on(t.eventOpsContactId),
+    index("contacts_name_idx").on(t.name),
+  ],
+);
+
+export const contactTags = ops.table(
+  "contact_tags",
+  {
+    contactId: uuid("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+    tag: contactTagEnum("tag").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.contactId, t.tag] })],
+);
 
 // ---------- enums ----------
 export const taskStatusEnum = ops.enum("task_status", ["backlog", "todo", "in_progress", "in_review", "done"]);

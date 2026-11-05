@@ -7,8 +7,7 @@ import { AccountFormButton, ContactFormButton, ContractFormButton, DealFormButto
 import { Badge, btn, Card, PageHeader, PanelHeader } from "@/components/ui";
 import { db } from "@/db";
 import { listUsers } from "@/db/queries";
-import { accountContacts, accounts, contracts, deals, followups } from "@/db/schema";
-import { contacts } from "@/db/shared";
+import { accountContacts, accounts, contracts, deals, followups, contacts } from "@/db/schema";
 import { contractAlerts, isLive, monthlyValue } from "@/domain/sales";
 import { fmtDate, money, todayISO, waLink } from "@/lib/format";
 import { ACCOUNT_TYPE, BILLING_PERIOD, CONTRACT_STATUS, DEAL_STAGE } from "@/lib/labels";
@@ -65,7 +64,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <PanelHeader title="Contactos" subtitle="Compartidos con Event Ops" action={canEdit && <ContactFormButton accountId={id} triggerClass={ghost} />} />
+          <PanelHeader title="Contactos" subtitle="Se guardan en Contactos" action={canEdit && <ContactFormButton accountId={id} triggerClass={ghost} />} />
           <div className="mt-2">
             {people.length === 0 && <p className="px-5 pb-5 text-sm text-muted">Sin contactos todavía.</p>}
             {people.map((p) => (

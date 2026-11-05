@@ -4,9 +4,9 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { contactConsents } from "@/db/schema";
-import { cityEnum, contacts, contactSourceEnum, contactTagEnum, contactTags } from "@/db/shared";
-import { optOut, upsertSharedContact } from "@/domain/contacts";
+import { contactConsents, cityEnum, contacts, contactSourceEnum, contactTagEnum, contactTags } from "@/db/schema";
+import { importFromEventOps, optOut, upsertContact } from "@/domain/contacts";
+import { importLeadSheet, parseLeadSheet } from "@/domain/lead-sheet";
 import { formAction, type ActionState } from "@/lib/action";
 import { requireUser } from "@/lib/session";
 
@@ -25,13 +25,13 @@ const _createContact = formAction(
   async (d) => {
     await requireUser();
     if (d.optIn && !d.evidence) throw new Error("Indica cómo dio su permiso (formulario, evento, mensaje…)");
-    const id = await upsertSharedContact(db, {
+    const { id } = await upsertContact(db, {
       name: d.name, email: d.email, phone: d.phone, city: d.city ?? null, source: d.source, tags: d.tags,
       marketingOptIn: d.optIn ? { source: "manual", evidence: d.evidence } : null,
     });
     if (d.notes) await db.update(contacts).set({ notes: d.notes }).where(eq(contacts.id, id));
     revalidatePath("/contacts");
-    return "Contacto guardado. Ya aparece también en Event Ops.";
+    return "Contacto guardado.";
   },
 );
 
@@ -42,13 +42,19 @@ const _updateContact = formAction(
     phone: z.string().max(40).optional(),
     city: z.enum(cityEnum.enumValues).optional(),
     notes: z.string().max(2000).optional(),
+    company: z.string().max(200).optional(),
+    jobTitle: z.string().max(200).optional(),
     tags: z.array(z.enum(contactTagEnum.enumValues)).default([]),
   }),
   async ({ id, tags, ...d }) => {
     await requireUser();
     await db.transaction(async (tx) => {
-      await tx.update(contacts).set({ name: d.name, phone: d.phone ?? null, city: d.city ?? null, notes: d.notes ?? null }).where(eq(contacts.id, id));
-      // Solo agrega etiquetas: Ziora Ops no tiene permiso de borrar en la base compartida.
+      await tx.update(contacts).set({
+        name: d.name, phone: d.phone ?? null, city: d.city ?? null, notes: d.notes ?? null,
+        company: d.company ?? null, jobTitle: d.jobTitle ?? null,
+      }).where(eq(contacts.id, id));
+      // Las etiquetas son propias de Ziora Ops: se reemplazan por las elegidas.
+      await tx.delete(contactTags).where(eq(contactTags.contactId, id));
       if (tags.length) await tx.insert(contactTags).values(tags.map((tag) => ({ contactId: id, tag }))).onConflictDoNothing();
     });
     revalidatePath("/contacts");
@@ -75,6 +81,32 @@ const _setConsent = formAction(
   },
 );
 
+const _importEventOps = formAction(
+  z.object({ ids: z.array(z.uuid()).min(1, "Selecciona al menos un contacto").max(500) }),
+  async ({ ids }) => {
+    await requireUser();
+    const r = await importFromEventOps(db, ids);
+    revalidatePath("/contacts");
+    revalidatePath("/contacts/importar-event-ops");
+    const parts = [`${r.created} nuevos`, r.completed ? `${r.completed} ya existían y se completaron` : "", r.skipped ? `${r.skipped} sin correo (no se importan)` : ""].filter(Boolean);
+    return `Importados: ${parts.join(" · ")}.`;
+  },
+);
+
+const MAX_CSV = 5 * 1024 * 1024;
+const _importLeads = formAction(
+  z.object({ file: z.instanceof(File, { message: "elige el CSV de la hoja" }).refine((f) => f.size > 0 && f.size <= MAX_CSV, "el CSV debe pesar menos de 5 MB") }),
+  async ({ file }) => {
+    await requireUser();
+    const { rows, skipped } = parseLeadSheet(await file.text());
+    if (!rows.length) throw new Error("No encontré filas con correo válido.");
+    const r = await importLeadSheet(db, rows);
+    revalidatePath("/contacts");
+    const skip = skipped.length ? ` · ${skipped.length} filas saltadas (${skipped.slice(0, 3).map((x) => `fila ${x.line}: ${x.reason}`).join("; ")}${skipped.length > 3 ? "…" : ""})` : "";
+    return `${r.created} contactos nuevos · ${r.completed} ya existían y se completaron${skip}.`;
+  },
+);
+
 // Next exige que cada export de un archivo "use server" sea una función async declarada.
 export async function createContact(prev: ActionState, fd: FormData) {
   return _createContact(prev, fd);
@@ -84,4 +116,10 @@ export async function updateContact(prev: ActionState, fd: FormData) {
 }
 export async function setConsent(prev: ActionState, fd: FormData) {
   return _setConsent(prev, fd);
+}
+export async function importEventOpsContacts(prev: ActionState, fd: FormData) {
+  return _importEventOps(prev, fd);
+}
+export async function importLeadsCsv(prev: ActionState, fd: FormData) {
+  return _importLeads(prev, fd);
 }

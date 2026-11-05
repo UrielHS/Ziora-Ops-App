@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { and, count, desc, eq, exists, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { Link2, Mail, MailX, Phone } from "lucide-react";
-import { createContact, setConsent, updateContact } from "@/actions/contacts";
+import { createContact, importLeadsCsv, setConsent, updateContact } from "@/actions/contacts";
 import { Avatar, Badge, btn, Card, cn, Field, inputCls, PageHeader, Select } from "@/components/ui";
 import { ActionForm, Modal, Submit } from "@/components/ui/form";
 import { db } from "@/db";
-import { contactConsents, demoRequests } from "@/db/schema";
-import { cityEnum, contacts, contactSourceEnum, contactTagEnum, contactTags } from "@/db/shared";
+import { contactConsents, demoRequests, cityEnum, contacts, contactSourceEnum, contactTagEnum, contactTags } from "@/db/schema";
 import { fmtDate } from "@/lib/format";
 import { CITY, CONTACT_SOURCE, CONTACT_TAG } from "@/lib/labels";
 
@@ -33,7 +32,7 @@ function TagPicker({ selected = [] }: { selected?: string[] }) {
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
-  const where: SQL[] = [eq(contacts.type, "person")];
+  const where: SQL[] = [];
   if (sp.q) where.push(or(ilike(contacts.name, `%${sp.q}%`), ilike(contacts.email, `%${sp.q}%`))!);
   if (sp.city) where.push(eq(contacts.city, sp.city as (typeof cityEnum.enumValues)[number]));
   if (sp.source) where.push(eq(contacts.source, sp.source as (typeof contactSourceEnum.enumValues)[number]));
@@ -51,10 +50,11 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     db.select({ total: count() }).from(contacts).leftJoin(contactConsents, and(eq(contactConsents.contactId, contacts.id), eq(contactConsents.channel, "email"))).where(and(...where)),
     db.select({
       all: sql<number>`count(*)::int`,
-      psych: sql<number>`count(*) filter (where exists (select 1 from contact_tags t where t.contact_id = ${contacts.id} and t.tag = 'psychologist'))::int`,
+      psych: sql<number>`count(*) filter (where exists (select 1 from ops.contact_tags t where t.contact_id = ${contacts.id} and t.tag = 'psychologist'))::int`,
       optIn: sql<number>`count(*) filter (where exists (select 1 from ops.contact_consents k where k.contact_id = ${contacts.id} and k.opt_in))::int`,
       fromZiora: sql<number>`count(*) filter (where ${contacts.source} in ('demo_form','ziora_app','facebook_group','instagram'))::int`,
-    }).from(contacts).where(eq(contacts.type, "person")),
+      leads: sql<number>`count(*) filter (where exists (select 1 from ops.contact_tags t where t.contact_id = ${contacts.id} and t.tag = 'lead'))::int`,
+    }).from(contacts),
   ]);
   const ids = rows.map((r) => r.c.id);
   const [tagRows, demoRows] = ids.length
@@ -71,10 +71,23 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        eyebrow="Ventas · base compartida"
+        eyebrow="Ventas"
         title="Contactos"
-        subtitle="La misma base que usa Event Ops: lo que agregues aquí aparece allá para invitarlo a eventos, y viceversa."
+        subtitle="Los contactos de Ziora Ops. Los de Event Ops no aparecen aquí: tráelos con Importar de Event Ops."
         actions={
+          <>
+          <Link href="/contacts/importar-event-ops" className={btn("secondary")}>Importar de Event Ops</Link>
+          <Modal trigger="Importar hoja de leads" triggerClass={btn("secondary")} title="Importar hoja de leads (CSV)">
+            <ActionForm action={importLeadsCsv}>
+              <p className="text-sm text-muted">
+                Descarga la pestaña de la hoja como CSV (Archivo → Descargar → .csv) y súbela tal cual. Se toman las columnas
+                Nombre, Email, Teléfono, Rol, Pacientes/sem, Enfoque, Documentación, Usa IA y Ciudad; las demás se ignoran.
+              </p>
+              <p className="text-xs text-faint">Si el correo ya existe, solo se completan los datos que falten. Nada de esto pasa a Event Ops.</p>
+              <Field label="Archivo CSV"><input type="file" name="file" accept=".csv,text/csv" required className="text-sm" /></Field>
+              <Submit>Importar</Submit>
+            </ActionForm>
+          </Modal>
           <Modal trigger="+ Contacto" title="Nuevo contacto" defaultOpen={sp.nuevo === "1"}>
             <ActionForm action={createContact}>
               <Field label="Nombre"><input name="name" required className={inputCls} placeholder="Psic. Nombre Apellido" /></Field>
@@ -95,15 +108,16 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
               <Submit>Guardar contacto</Submit>
             </ActionForm>
           </Modal>
+          </>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          ["Contactos (personas)", stats.all, "En ambos sistemas"],
+          ["Contactos", stats.all, "Solo de Ziora Ops"],
           ["Psicólogos", stats.psych, "Etiqueta psicólogo/a"],
+          ["Leads", stats.leads, "Etiqueta lead"],
           ["Con permiso de correo", stats.optIn, `${stats.all ? Math.round((stats.optIn / stats.all) * 100) : 0}% de la base`],
-          ["Llegaron por Ziora", stats.fromZiora, "Demo, app, redes"],
         ].map(([l, v, n]) => (
           <div key={l as string} className="card p-4">
             <p className="label">{l}</p>
@@ -146,7 +160,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
                     </span>
                   </span>
                   <span className="text-xs text-muted">
-                    {c.city ? CITY[c.city] : "—"} · {CONTACT_SOURCE[c.source] ?? c.source}
+                    {c.cityName ?? (c.city ? CITY[c.city] : "—")} · {CONTACT_SOURCE[c.source] ?? c.source}
+                    {c.jobTitle && <span className="mt-1 block truncate text-[11px] font-semibold text-ink">{c.jobTitle}</span>}
                   </span>
                   <span className="flex flex-wrap gap-1">
                     {tags.slice(0, 4).map((t) => <Badge key={t} tone={(ZIORA_TAGS as readonly string[]).includes(t) ? "green" : "gray"}>{CONTACT_TAG[t] ?? t}</Badge>)}
@@ -165,8 +180,21 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
                 <div className="flex flex-wrap gap-2 text-sm">
                   {c.email && <a href={`mailto:${c.email}`} className={btn("ghost", "sm")}><Mail className="h-3.5 w-3.5" />{c.email}</a>}
                   {c.phone && <span className={btn("ghost", "sm")}><Phone className="h-3.5 w-3.5" />{c.phone}</span>}
-                  <a href={`${eventOps}/contacts/${c.id}`} target="_blank" className={btn("secondary", "sm")}><Link2 className="h-3.5 w-3.5" />Abrir en Event Ops</a>
+                  {c.eventOpsContactId && <a href={`${eventOps}/contacts/${c.eventOpsContactId}`} target="_blank" className={btn("secondary", "sm")}><Link2 className="h-3.5 w-3.5" />Ver origen en Event Ops</a>}
                 </div>
+                {(c.jobTitle || c.patientsPerWeek || c.approach || c.documentation || c.aiUsage) && (
+                  <div className="rounded-2xl border border-line bg-white p-4">
+                    <p className="text-sm font-bold">Perfil del lead</p>
+                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                      {([
+                        ["Rol", c.jobTitle], ["Pacientes/sem", c.patientsPerWeek], ["Enfoque", c.approach],
+                        ["Documentación", c.documentation], ["Usa IA", c.aiUsage], ["Ciudad", c.cityName],
+                      ] as [string, unknown][]).filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v]) => (
+                        <div key={k} className="min-w-0"><dt className="text-faint">{k}</dt><dd className="truncate font-semibold">{String(v)}</dd></div>
+                      ))}
+                    </dl>
+                  </div>
+                )}
                 <ActionForm action={updateContact}>
                   <input type="hidden" name="id" value={c.id} />
                   <Field label="Nombre"><input name="name" defaultValue={c.name} className={inputCls} /></Field>
@@ -174,7 +202,11 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
                     <Field label="Teléfono"><input name="phone" defaultValue={c.phone ?? ""} className={inputCls} /></Field>
                     <Field label="Ciudad"><Select name="city" defaultValue={c.city} placeholder="—" options={Object.entries(CITY)} /></Field>
                   </div>
-                  <Field label="Etiquetas" hint="Ziora Ops solo agrega etiquetas; quitar se hace en Event Ops."><TagPicker selected={tags} /></Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Empresa o clínica"><input name="company" defaultValue={c.company ?? ""} className={inputCls} /></Field>
+                    <Field label="Puesto"><input name="jobTitle" defaultValue={c.jobTitle ?? ""} className={inputCls} /></Field>
+                  </div>
+                  <Field label="Etiquetas"><TagPicker selected={tags} /></Field>
                   <Field label="Notas"><textarea name="notes" rows={2} defaultValue={c.notes ?? ""} className={inputCls} /></Field>
                   <Submit>Guardar cambios</Submit>
                 </ActionForm>

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { demoRequests, demoStageEnum, tasks } from "@/db/schema";
-import { toCity, upsertSharedContact } from "@/domain/contacts";
+import { toCity, upsertContact } from "@/domain/contacts";
 import { formAction, type ActionState } from "@/lib/action";
 import { calendarConfig, syncCalendarDemos } from "@/domain/demos";
 import { requireUser } from "@/lib/session";
@@ -28,7 +28,7 @@ const _createDemo = formAction(
   }),
   async (d) => {
     await requireUser();
-    const contactId = await upsertSharedContact(db, {
+    const { id: contactId } = await upsertContact(db, {
       name: d.fullName, email: d.email, phone: d.whatsapp, city: toCity(d.city), source: "demo_form",
       tags: ["psychologist", "lead"],
       details: { patientsPerWeek: d.patientsPerWeek, teletherapy: d.teletherapy },
@@ -40,7 +40,7 @@ const _createDemo = formAction(
       stage: d.scheduledAt ? "scheduled" : "requested", ownerId: d.ownerId ?? null, source: "manual",
     });
     revalidatePath("/", "layout");
-    return "Demo registrada y contacto agregado a la base compartida";
+    return "Demo registrada y contacto agregado a Contactos";
   },
 );
 
