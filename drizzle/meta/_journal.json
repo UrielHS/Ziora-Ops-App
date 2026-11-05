@@ -50,6 +50,13 @@
       "when": 1793729674418,
       "tag": "0006_social_ads",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793858845539,
+      "tag": "0007_app_users_billing",
+      "breakpoints": true
     }
   ]
 }

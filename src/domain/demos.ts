@@ -94,6 +94,44 @@ export async function applyCalendarDemo(db: Db, ev: ParsedDemoEvent): Promise<ke
   return "skipped";
 }
 
+export type WebhookDemoResult = "created" | "rescheduled" | "cancelled" | "duplicate" | "skipped";
+const CANCELLED_BY_LEAD = ["Canceló en el calendario", "Canceló la demo"];
+
+/**
+ * Demo que avisa la app (ziora-api). Por id: la crea, la reagenda si cambió la fecha o la marca perdida si se canceló.
+ * Una demo ya realizada o pagada no se toca al cancelar.
+ */
+export async function applyWebhookDemo(db: Db, p: DemoInput & { status?: "scheduled" | "rescheduled" | "cancelled" }): Promise<{ result: WebhookDemoResult; demoId: string | null }> {
+  const [existing] = p.externalId
+    ? await db.select().from(demoRequests).where(eq(demoRequests.externalId, p.externalId)).limit(1)
+    : [];
+
+  if (p.status === "cancelled") {
+    if (existing && (existing.stage === "requested" || existing.stage === "scheduled")) {
+      await db.update(demoRequests).set({ stage: "lost", lostReason: "Canceló la demo" }).where(eq(demoRequests.id, existing.id));
+      return { result: "cancelled", demoId: existing.id };
+    }
+    return { result: "skipped", demoId: existing?.id ?? null };
+  }
+
+  if (!existing) {
+    const r = await ingestDemo(db, p);
+    return { result: r.duplicate ? "duplicate" : "created", demoId: r.demoId };
+  }
+
+  const moved = p.scheduledAt && existing.scheduledAt?.getTime() !== p.scheduledAt.getTime();
+  if (moved) {
+    await db.update(demoRequests).set({
+      scheduledAt: p.scheduledAt,
+      ...(existing.stage === "requested" || (existing.stage === "lost" && CANCELLED_BY_LEAD.includes(existing.lostReason ?? ""))
+        ? { stage: "scheduled" as const, lostReason: null }
+        : {}),
+    }).where(eq(demoRequests.id, existing.id));
+    return { result: "rescheduled", demoId: existing.id };
+  }
+  return { result: "duplicate", demoId: existing.id };
+}
+
 export function calendarConfig() {
   return {
     subject: process.env.GOOGLE_CALENDAR_SUBJECT,

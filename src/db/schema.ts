@@ -486,6 +486,12 @@ export const appUsers = ops.table(
     patientCount: integer("patient_count").notNull().default(0),
     sessionsLast30d: integer("sessions_last_30d").notNull().default(0),
     trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    // Suscripción real (Stripe, vía la app). mrrCents null = la app no lo mandó y se usa plan × precio.
+    billingPeriod: text("billing_period"), // monthly | annual
+    mrrCents: integer("mrr_cents"),
+    currency: text("currency"), // ISO 4217 en minúsculas: mxn, usd…
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
     accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }), // si pertenece a una clínica cliente
     firstSyncedAt: timestamp("first_synced_at", { withTimezone: true }).notNull().defaultNow(),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),

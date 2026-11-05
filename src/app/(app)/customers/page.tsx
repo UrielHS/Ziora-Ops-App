@@ -8,7 +8,7 @@ import { ActionForm, Modal, Submit } from "@/components/ui/form";
 import { db } from "@/db";
 import { listUsers } from "@/db/queries";
 import { appUserDaily, appUsers, followups, planPrices } from "@/db/schema";
-import { ACTIVE_DAYS, estimatedMrr, isActive, isPaying, summarizeByPlan } from "@/domain/app-users";
+import { ACTIVE_DAYS, estimatedMrr, isActive, isPaying, realMrr, summarizeByPlan } from "@/domain/app-users";
 import { fmtDate, money, relative } from "@/lib/format";
 import { BILLING_PERIOD, HEALTH } from "@/lib/labels";
 import { can } from "@/lib/permissions";
@@ -55,7 +55,12 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   const paying = users.filter((u) => isPaying(u, prices)).length;
   const patients = users.reduce((s, u) => s + u.patientCount, 0);
   const plansSeen = [...new Set([...users.map((u) => u.plan), ...prices.map((p) => p.plan)])].sort();
-  const unpriced = [...new Set(users.map((u) => u.plan))].filter((p) => !prices.some((x) => x.plan === p));
+  const withReal = users.filter((u) => realMrr(u) !== null).length;
+  const unpriced = [...new Set(users.filter((u) => realMrr(u) === null).map((u) => u.plan))].filter((p) => !prices.some((x) => x.plan === p));
+  const mrrNote = withReal === users.length && users.length > 0
+    ? "Real, de las suscripciones de Stripe"
+    : unpriced.length ? `Sin precio: ${unpriced.join(", ")}`
+    : withReal ? `Stripe en ${withReal} cuentas; el resto plan × precio` : "Plan × precio; falta conectar pagos";
   const maxTrend = Math.max(1, ...trend.map((t) => t.users));
   const qs = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams(Object.entries({ q: sp.q, plan: sp.plan, estado: sp.estado, ...patch }).filter(([, v]) => v) as [string, string][]);
@@ -66,7 +71,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
     return (
       <div className="flex flex-col gap-5">
         <PageHeader eyebrow="Clientes" title="Usuarios de Ziora" />
-        <Empty title="Todavía no hay datos de la app" text="Falta conectar la función opsSnapshot de Firebase. La guía está en docs/PUENTE-ZIORA-APP.md; cuando esté lista, los usuarios se sincronizan cada hora." />
+        <Empty title="Todavía no hay datos de la app" text="Falta conectar el endpoint /ops/snapshot de ziora-api. La especificación está en docs/API-ZIORA-APP.md; cuando esté listo, los usuarios se sincronizan cada hora." />
       </div>
     );
   }
@@ -85,7 +90,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
         <Kpi label="Activos" value={`${users.length ? Math.round((active / users.length) * 100) : 0}%`} note={`${active} entraron en ${ACTIVE_DAYS} días`} icon={Activity} />
         <Kpi label="Pacientes registrados" value={patients.toLocaleString("es-MX")} note={`${users.length ? (patients / users.length).toFixed(1) : 0} por terapeuta`} icon={HeartPulse} />
         {showRevenue
-          ? <Kpi label="MRR estimado" value={money(estimatedMrr(users, prices))} note={unpriced.length ? `Sin precio: ${unpriced.join(", ")}` : "Plan × precio; falta conectar pagos"} icon={CircleDollarSign} highlight />
+          ? <Kpi label={withReal === users.length && users.length > 0 ? "MRR" : "MRR estimado"} value={money(Math.round(estimatedMrr(users, prices)))} note={mrrNote} icon={CircleDollarSign} highlight />
           : <Kpi label="Planes" value={byPlan.length} icon={CircleDollarSign} />}
       </div>
 
