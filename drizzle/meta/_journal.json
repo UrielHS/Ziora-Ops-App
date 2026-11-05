@@ -57,6 +57,20 @@
       "when": 1793858845539,
       "tag": "0007_app_users_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793893708544,
+      "tag": "0008_contactos_propios",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793909917315,
+      "tag": "0009_perfil_lead",
+      "breakpoints": true
     }
   ]
 }

@@ -5,8 +5,7 @@ import { Avatar, Badge, Card, cn, Kpi, PanelHeader, Progress, ViewAll } from "@/
 import { db } from "@/db";
 import { activeSprint, listEpics, listUsers } from "@/db/queries";
 import { goalsWithValues, gtmDay, gtmPhase } from "@/db/goals";
-import { bugs, campaigns, contactConsents, demoRequests, emailTemplates, pullRequests, tasks } from "@/db/schema";
-import { contacts, contactTags } from "@/db/shared";
+import { bugs, campaigns, contactConsents, demoRequests, emailTemplates, pullRequests, tasks, contacts, contactTags } from "@/db/schema";
 import { resolveRecipients } from "@/domain/campaigns";
 import { renderTemplate } from "@/domain/template";
 import { cap, fmtDate, fmtDateTime, relative, todayISO } from "@/lib/format";
@@ -130,7 +129,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <Kpi href="/tasks" label="Tareas abiertas" value={openTasks.n} note={`${dueSoon.n} vencen en 7 días`} icon={CheckSquare} />
         <Kpi href="/bugs" label="Bugs abiertos" value={openBugs.n} note={`${critCount.n} crítico${critCount.n === 1 ? "" : "s"}`} icon={Bug} />
         <Kpi href="/pull-requests" label="PRs abiertos" value={openPrs.n} note={`${waitingPrs.n} esperan revisión`} icon={GitPullRequest} />
-        <Kpi href="/contacts?tag=psychologist" label="Psicólogos en base" value={psych.n} note="Compartidos con Event Ops" icon={Users} />
+        <Kpi href="/contacts?tag=psychologist" label="Psicólogos en base" value={psych.n} note="En Contactos" icon={Users} />
         <Kpi href="/contacts?consent=yes" label="Con permiso de correo" value={optIn.n} note="Opt-in vigente" icon={Mail} />
       </section>
 

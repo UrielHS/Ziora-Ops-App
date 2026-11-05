@@ -11,16 +11,16 @@ describe.runIf(enabled)("campañas: destinatarios", () => {
   it("solo incluye contactos con opt-in vigente y respeta la baja", async () => {
     const { db } = await import("@/db");
     const { campaigns, emailTemplates } = await import("@/db/schema");
-    const { contacts } = await import("@/db/shared");
+    const { contacts } = await import("@/db/schema");
     const { resolveRecipients } = await import("./campaigns");
-    const { optOut, upsertSharedContact } = await import("./contacts");
+    const { optOut, upsertContact } = await import("./contacts");
 
     const suffix = Date.now();
-    const optedIn = await upsertSharedContact(db, {
+    const { id: optedIn } = await upsertContact(db, {
       name: "Psic. Con Permiso", email: `si-${suffix}@test.mx`, city: "mty", source: "demo_form",
       tags: ["psychologist"], marketingOptIn: { source: "test" },
     });
-    await upsertSharedContact(db, {
+    await upsertContact(db, {
       name: "Psic. Sin Permiso", email: `no-${suffix}@test.mx`, city: "mty", source: "demo_form", tags: ["psychologist"],
     });
 
@@ -39,7 +39,7 @@ describe.runIf(enabled)("campañas: destinatarios", () => {
     expect(second.map((r) => r.id)).not.toContain(optedIn);
 
     // Re-enviar el formulario con opt-in NO revive una baja
-    await upsertSharedContact(db, {
+    await upsertContact(db, {
       name: "Psic. Con Permiso", email: `si-${suffix}@test.mx`, source: "demo_form", tags: [], marketingOptIn: { source: "test" },
     });
     const third = await resolveRecipients(db, camp.id);

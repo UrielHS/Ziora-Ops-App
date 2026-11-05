@@ -10,7 +10,7 @@ const describeDb = (name: string, fn: () => Promise<void>) =>
 describeDb("ventas B2B", async () => {
   const { db } = await import("@/db");
   const { accountContacts, contracts, deals } = await import("@/db/schema");
-  const { contactTags, contacts } = await import("@/db/shared");
+  const { contactTags, contacts } = await import("@/db/schema");
   const s = await import("./sales");
   const tag = Date.now();
 

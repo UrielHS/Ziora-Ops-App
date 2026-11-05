@@ -6,8 +6,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { Kanban } from "@/components/ui/kanban";
 import { db } from "@/db";
 import { listUsers } from "@/db/queries";
-import { demoRequests } from "@/db/schema";
-import { contacts } from "@/db/shared";
+import { demoRequests, contacts } from "@/db/schema";
 import { pct } from "@/lib/format";
 import { DEMO_STAGE } from "@/lib/labels";
 

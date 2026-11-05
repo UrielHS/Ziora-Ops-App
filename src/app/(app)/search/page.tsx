@@ -2,8 +2,7 @@ import Link from "next/link";
 import { ilike, or } from "drizzle-orm";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { db } from "@/db";
-import { bugs, demoRequests, tasks } from "@/db/schema";
-import { contacts } from "@/db/shared";
+import { bugs, demoRequests, tasks, contacts } from "@/db/schema";
 import { BUG_STATUS, DEMO_STAGE, TASK_STATUS } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";

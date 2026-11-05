@@ -104,6 +104,7 @@ export const CONTACT_TAG: Record<string, string> = {
 export const CONTACT_SOURCE: Record<string, string> = {
   manual: "Manual", luma: "Luma", notion: "Notion", linkedin: "LinkedIn", ai_tinkerers: "AI Tinkerers",
   demo_form: "Formulario demo", ziora_app: "App Ziora", facebook_group: "Grupo FB", instagram: "Instagram", csv_import: "CSV",
+  sheet_import: "Hoja de leads", event_ops: "Event Ops", referral: "Referido",
 };
 
 /** Checklist de la sección 5 del brief GTM: debe estar completa para aprobar una pieza. */

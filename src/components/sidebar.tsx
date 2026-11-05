@@ -29,7 +29,7 @@ export function Sidebar({
     { label: "Ventas", items: [
       { href: "/sales", label: "Cuentas y contratos", icon: Building2, perm: "sales.view" },
       { href: "/demos", label: "Demos", icon: Video, count: counts.demos },
-      { href: "/contacts", label: "Contactos", icon: Users, shared: true },
+      { href: "/contacts", label: "Contactos", icon: Users },
     ] },
     { label: "Clientes", items: [
       { href: "/customers", label: "Usuarios de Ziora", icon: HeartPulse, perm: "customers.view" },
