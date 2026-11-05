@@ -1,0 +1,98 @@
+name: Desplegar a producción
+
+# Corre cuando algo llega a main (merge de un PR). También se puede correr a mano desde la pestaña Actions
+# para reintentar o regresar a una versión anterior (Run workflow sobre ese commit).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: event-ops-509602
+  REGION: us-central1
+  SERVICE: ziora-ops
+  IMAGE: us-central1-docker.pkg.dev/event-ops-509602/event-ops/ziora-ops
+  SQL_INSTANCE: event-ops-509602:us-central1:event-ops-db
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Workload Identity Federation: GitHub obtiene credenciales temporales de Google. No hay llaves guardadas.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Revisar tipos y pruebas
+        run: |
+          npm run typecheck
+          npm test
+
+      - id: auth
+        name: Autenticarse en Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/845770051786/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: github-deployer@event-ops-509602.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # Primero la base: la imagen nueva puede depender de columnas nuevas. Solo toca el schema "ops".
+      - name: Migraciones de Ziora Ops
+        run: |
+          curl -sSLo cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy "$SQL_INSTANCE" --port 5432 &
+          for i in $(seq 1 30); do
+            (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1 && break
+            sleep 1
+          done
+          PASS=$(gcloud secrets versions access latest --secret=ziora-ops-db-password --project "$PROJECT_ID")
+          echo "::add-mask::$PASS"
+          ENC=$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$PASS")
+          echo "::add-mask::$ENC"
+          DATABASE_URL="postgres://ziora_ops:${ENC}@127.0.0.1:5432/eventops" npx drizzle-kit migrate
+
+      - name: Construir la imagen
+        run: |
+          # Se manda con --async y se consulta el estado: ver los logs en vivo exige permisos de Viewer,
+          # que el deployer no tiene ni debe tener.
+          BUILD_ID=$(gcloud builds submit --tag "${IMAGE}:${GITHUB_SHA}" --async --format="value(id)" --project "$PROJECT_ID")
+          echo "Cloud Build ${BUILD_ID}"
+          while true; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" --project "$PROJECT_ID" --format="value(status)")
+            echo "estado: ${STATUS}"
+            case "$STATUS" in
+              SUCCESS) break ;;
+              FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) echo "El build terminó en ${STATUS}"; exit 1 ;;
+            esac
+            sleep 15
+          done
+
+      - name: Publicar la versión
+        run: |
+          # Solo cambia la imagen: variables, secretos y cuenta de servicio se conservan.
+          gcloud run deploy "$SERVICE" --image "${IMAGE}:${GITHUB_SHA}" --region "$REGION" --project "$PROJECT_ID"
+
+      - name: Prueba rápida
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format='value(status.url)')
+          for path in /api/health /login; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -L --max-time 30 "${URL}${path}")
+            echo "${path} -> ${code}"
+            [ "$code" = "200" ] || exit 1
+          done

@@ -1,0 +1,28 @@
+name: Revisar PR
+
+# En cada PR: tipos, pruebas y build. Si algo falla, GitHub lo marca antes del merge.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Tipos
+        run: npm run typecheck
+      - name: Pruebas
+        run: npm test
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgres://placeholder:placeholder@localhost:5432/placeholder
+          NEXT_TELEMETRY_DISABLED: "1"
