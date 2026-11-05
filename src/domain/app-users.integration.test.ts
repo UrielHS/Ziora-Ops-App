@@ -57,4 +57,25 @@ describeDb("usuarios de la app y seguimiento 1:1", async () => {
     expect(next).toMatchObject({ status: "pending", title: "Confirmar pago", dueOn: "2026-11-10", reason: "manual" });
     await expect(f.completeFollowup(db, { id: trial.id, outcome: "otra vez", health: "green" })).rejects.toThrow(/ya se cerró/);
   });
+
+  it("una cuenta de prueba se conserva al sincronizar y no cuenta en el resumen ni en seguimientos", async () => {
+    const { setAppUserTest } = await import("./app-users");
+    const plan = `pt${tag}`;
+    await db.insert(planPrices).values({ plan, label: "Prueba", priceMxn: 590 }).onConflictDoNothing();
+    const snap = (extra: Record<string, unknown> = {}) => ({ generatedAt: now.toISOString(), users: [
+      { uid: `real-${tag}`, email: `real-${tag}@example.com`, plan, status: "active", patientCount: 4, sessionsLast30d: 3, lastActiveAt: iso(1) },
+      { uid: `yo-${tag}`, email: `yo-${tag}@example.com`, plan, status: "active", patientCount: 9, sessionsLast30d: 9, lastActiveAt: iso(9), ...extra },
+    ] });
+    await applySnapshot(db, snap(), now);
+    await setAppUserTest(db, `yo-${tag}`, true);
+    await applySnapshot(db, snap({ name: "Cambio de nombre" }), now); // la app la vuelve a mandar
+
+    const [yo] = await db.select().from(appUsers).where(eq(appUsers.uid, `yo-${tag}`));
+    expect(yo).toMatchObject({ isTest: true, name: "Cambio de nombre" });
+    const [daily] = await db.select().from(appUserDaily).where(eq(appUserDaily.plan, plan));
+    expect(daily).toMatchObject({ users: 1, patients: 4, estimatedMrrMxn: 590 });
+
+    await f.suggestFollowups(db, now); // "yo" no entra hace 9 días y paga: sería candidata si no fuera de prueba
+    expect(await db.select().from(followups).where(eq(followups.appUserUid, `yo-${tag}`))).toHaveLength(0);
+  });
 });

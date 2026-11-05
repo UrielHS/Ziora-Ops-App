@@ -55,7 +55,7 @@ export async function suggestFollowups(db: Db, now = new Date(), today?: string)
   const day = today ?? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(now);
   const [prices, current, [director]] = await Promise.all([
     db.select().from(planPrices),
-    db.select().from(appUsers).where(isNull(appUsers.removedAt)),
+    db.select().from(appUsers).where(and(isNull(appUsers.removedAt), eq(appUsers.isTest, false))),
     db.select({ id: users.id }).from(memberRoles).innerJoin(users, eq(users.id, memberRoles.userId))
       .where(and(eq(memberRoles.role, "clinical_director"), eq(users.active, true))).limit(1),
   ]);
@@ -76,7 +76,8 @@ export async function closeStaleSuggestions(db: Db, now = new Date()) {
       .where(and(eq(followups.status, "pending"), inArray(followups.reason, ["paying_inactive", "trial_ending"]))),
   ]);
   if (pending.length === 0) return 0;
-  const us = await db.select().from(appUsers).where(inArray(appUsers.uid, pending.map((p) => p.uid!).filter(Boolean)));
+  // Una cuenta marcada como prueba deja de "seguir aplicando": su sugerencia pendiente se cierra.
+  const us = await db.select().from(appUsers).where(and(inArray(appUsers.uid, pending.map((p) => p.uid!).filter(Boolean)), eq(appUsers.isTest, false)));
   const still = new Set(followupCandidates(us, prices, now).map((c) => `${c.user.uid}:${c.reason}`));
   const stale = pending.filter((p) => !still.has(`${p.uid}:${p.reason}`)).map((p) => p.id);
   if (stale.length) await db.update(followups).set({ status: "cancelled", outcome: "Ya no aplica (se resolvió solo)." }).where(inArray(followups.id, stale));
