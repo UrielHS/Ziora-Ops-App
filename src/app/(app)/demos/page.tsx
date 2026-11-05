@@ -42,7 +42,7 @@ export default async function DemosPage({ searchParams }: { searchParams: Promis
       <PageHeader
         eyebrow="Ventas"
         title="Pipeline de demos"
-        subtitle="Las demos agendadas en el calendario del CEO entran solas cada 10 min. Arrastra las tarjetas para cambiar de etapa."
+        subtitle="Las demos de ziora-copilot.com entran solas, con sus UTM; el calendario del CEO queda de respaldo. Arrastra las tarjetas para cambiar de etapa."
         actions={
           <>
             <ActionForm action={syncDemosNow} className="flex flex-col items-end gap-1">

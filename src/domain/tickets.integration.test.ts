@@ -73,5 +73,11 @@ describeDb("tickets", async () => {
     expect(row.kind).toBe("bug");
     expect(row.origin).toBe("ziora_app_help");
     expect(row.title).toBe("No puedo descargar el PDF de la nota");
+
+    // Como lo manda ziora-api: category "suggestion" -> idea (feature)
+    const sug = { externalId: `sug-${Date.now()}`, message: "Agregar plantillas de nota", category: "suggestion", subject: "Sugerencia: Notas" };
+    expect((await t.ingestHelpRequest(db, sug)).created).toBe(true);
+    const [s] = await db.select().from(tickets).where(eq(tickets.externalId, sug.externalId));
+    expect(s.kind).toBe("feature");
   });
 });

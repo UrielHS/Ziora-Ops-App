@@ -38,13 +38,25 @@ Ziora Ops es el CRM y sistema operativo interno del equipo de Ziora. Ahí se reg
 
 ## 3. Configuración y seguridad
 
-### Variables (Secret Manager de `ziora-ehr` → Cloud Run de `ziora-api` y `ziora-api-staging`)
+### Variables (Cloud Run de `ziora-api` y `ziora-api-staging`)
+
+Los secretos viven en Secret Manager de `event-ops-509602`. La cuenta con la que corre `ziora-api`
+(`717696530354-compute@developer.gserviceaccount.com`) ya tiene permiso de lectura solo sobre esos dos.
+No hay que copiar valores: Cloud Run los lee por referencia, y si se rotan, ziora-api toma el nuevo al redesplegar.
 
 | Variable | Tipo | Valor |
 | --- | --- | --- |
-| `OPS_BRIDGE_SECRET` | Secreto | Lo entrega Uriel por 1Password. Igual en Ziora Ops (`ZIORA_APP_BRIDGE_SECRET`). |
-| `OPS_DEMO_WEBHOOK_SECRET` | Secreto | Lo entrega Uriel por 1Password. Igual en Ziora Ops (`DEMO_WEBHOOK_SECRET`). |
+| `OPS_BRIDGE_SECRET` | Secreto | `projects/845770051786/secrets/ziora-ops-app-bridge-secret:latest`. En Ziora Ops es `ZIORA_APP_BRIDGE_SECRET`. |
+| `OPS_DEMO_WEBHOOK_SECRET` | Secreto | `projects/845770051786/secrets/ziora-ops-demo-webhook-secret:latest`. En Ziora Ops es `DEMO_WEBHOOK_SECRET`. |
 | `OPS_BASE_URL` | Variable | `https://ziora-ops-qlbjkgrofq-uc.a.run.app` (sin barra final). Cambiará a `https://ops.ziora-copilot.com`. |
+
+```bash
+gcloud run services update ziora-api --region us-central1 --project ziora-ehr \
+  --update-secrets OPS_BRIDGE_SECRET=projects/845770051786/secrets/ziora-ops-app-bridge-secret:latest,OPS_DEMO_WEBHOOK_SECRET=projects/845770051786/secrets/ziora-ops-demo-webhook-secret:latest \
+  --update-env-vars OPS_BASE_URL=https://ziora-ops-qlbjkgrofq-uc.a.run.app
+```
+
+Lo mismo para `ziora-api-staging`.
 
 ### Firma
 
