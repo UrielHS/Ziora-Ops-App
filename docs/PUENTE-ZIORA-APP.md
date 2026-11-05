@@ -1,5 +1,8 @@
 # Puente con Ziora Copilot (Firebase)
 
+> **Obsoleto.** La app no usa Firestore: sus datos viven en `ziora-api` (Cloud SQL). La integración vigente está en
+> [API-ZIORA-APP.md](API-ZIORA-APP.md). Este archivo y `docs/firebase/` quedan solo como referencia.
+
 Ziora Ops lee de la app clínica solo lo necesario para dar seguimiento a los usuarios: plan, estado,
 actividad y **cuántos** pacientes y sesiones tiene cada terapeuta. Nunca nombres, notas ni nada de un paciente.
 

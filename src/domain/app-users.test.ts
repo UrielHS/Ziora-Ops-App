@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimatedMrr, followupCandidates, isActive, Snapshot, summarizeByPlan } from "./app-users";
+import { estimatedMrr, followupCandidates, isActive, isPaying, realMrr, Snapshot, summarizeByPlan } from "./app-users";
 
 const now = new Date("2026-11-03T12:00:00Z");
 const daysAgo = (n: number) => new Date(now.getTime() - n * 86400000);
@@ -13,6 +13,13 @@ describe("snapshot de la app", () => {
   const user = { uid: "u1", email: "psic@example.com", plan: "pro", status: "active", patientCount: 12, sessionsLast30d: 30 };
   it("acepta solo los campos permitidos", () => {
     expect(Snapshot.safeParse({ generatedAt: now.toISOString(), users: [user] }).success).toBe(true);
+  });
+  it("acepta los campos de suscripción opcionales", () => {
+    const billing = { billingPeriod: "annual", mrrAmount: 491.67, currency: "mxn", currentPeriodEnd: "2027-01-01T00:00:00Z", cancelAtPeriodEnd: true };
+    expect(Snapshot.safeParse({ generatedAt: now.toISOString(), users: [{ ...user, ...billing }] }).success).toBe(true);
+    expect(Snapshot.safeParse({ generatedAt: now.toISOString(), users: [{ ...user, billingPeriod: null, mrrAmount: null, currency: null, currentPeriodEnd: null }] }).success).toBe(true);
+    expect(Snapshot.safeParse({ generatedAt: now.toISOString(), users: [{ ...user, currency: "MXN" }] }).success).toBe(false);
+    expect(Snapshot.safeParse({ generatedAt: now.toISOString(), users: [{ ...user, mrrAmount: -1 }] }).success).toBe(false);
   });
   it("rechaza cualquier campo extra (protección de datos de pacientes)", () => {
     const r = Snapshot.safeParse({ generatedAt: now.toISOString(), users: [{ ...user, patients: [{ name: "X" }] }] });
@@ -49,5 +56,23 @@ describe("métricas", () => {
       { plan: "pro", status: "trialing", lastActiveAt: daysAgo(1), patientCount: 1, trialEndsAt: new Date(now.getTime() + 9 * 86400000) },
     ], prices, now);
     expect(c.map((x) => x.reason)).toEqual(["paying_inactive", "trial_ending"]);
+  });
+});
+
+describe("MRR real de Stripe", () => {
+  it("usa el monto real cuando viene en pesos y cae a plan × precio si no", () => {
+    expect(realMrr({ mrrCents: 49167, currency: "mxn" })).toBe(491.67);
+    expect(realMrr({ mrrCents: 2000, currency: "usd" })).toBeNull();
+    expect(realMrr({ mrrCents: null })).toBeNull();
+    const users = [
+      { plan: "pro", status: "active", mrrCents: 50000, currency: "mxn" }, // cupón: paga 500, no 590
+      { plan: "pro", status: "active" }, // sin dato real: 590
+      { plan: "pro", status: "active", mrrCents: 0, currency: "mxn" }, // 100% de descuento: no paga
+      { plan: "pro", status: "past_due", mrrCents: 59000, currency: "mxn" },
+      { plan: "pro", status: "trialing", mrrCents: 59000, currency: "mxn" },
+    ];
+    expect(estimatedMrr(users, prices)).toBe(500 + 590 + 590);
+    expect(isPaying(users[2], prices)).toBe(false);
+    expect(isPaying({ plan: "free", status: "active", mrrCents: 10000, currency: "mxn" }, prices)).toBe(true);
   });
 });

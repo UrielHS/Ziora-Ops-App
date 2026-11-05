@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
-  BarChart3, Building2, Bug, HeartPulse, PhoneCall, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Target, Ticket, Users, Video,
+  BarChart3, BookOpen, Building2, Bug, ChevronDown, HeartPulse, PhoneCall, CalendarDays, ClipboardCheck, Lightbulb, CheckSquare, FileCode2, GitPullRequest, LayoutDashboard, LineChart, Link2, Mail, Megaphone, Settings, Target, Ticket, Users, Video,
 } from "lucide-react";
 import { Avatar, cn } from "@/components/ui";
 import { can, type Access, type Permission } from "@/lib/permissions";
+
+const NAV_KEY = "ziora-ops.nav-abierta";
+const GUIDE_URL = "https://claude.ai/artifact/MuA3uW7R56AbWaQeWx2fGF";
 
 type Item = {
   href: string; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -60,6 +64,17 @@ export function Sidebar({
   const isActive = (href: string) =>
     (path === href || path.startsWith(`${href}/`)) && !hrefs.some((h) => h.length > href.length && (path === h || path.startsWith(`${h}/`)));
 
+  // Grupos plegables: el de la página actual siempre abierto; los demás, como los dejó la persona.
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try { setOpen(JSON.parse(localStorage.getItem(NAV_KEY) ?? "{}")); } catch { /* sin almacenamiento: todo plegado */ }
+  }, []);
+  const toggle = (label: string, now: boolean) => {
+    const next = { ...open, [label]: !now };
+    setOpen(next);
+    try { localStorage.setItem(NAV_KEY, JSON.stringify(next)); } catch { /* no se recuerda, pero funciona */ }
+  };
+
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto px-3 py-5 md:flex">
       <Link href="/dashboard" className="flex items-center gap-2 px-3 pb-5">
@@ -67,36 +82,66 @@ export function Sidebar({
         <span className="text-[19px] font-extrabold tracking-tight text-teal">Ziora</span>
         <span className="text-[19px] font-medium text-faint">Ops</span>
       </Link>
-      <nav className="flex flex-col gap-4">
-        {groups.map((g, gi) => (
-          <div key={gi} className="flex flex-col gap-0.5">
-            {g.label && <p className="label px-3 pb-1">{g.label}</p>}
-            {g.items.map(({ href, label, icon: Icon, shared, count }) => {
-              const on = isActive(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={on ? "page" : undefined}
-                  title={shared ? "Datos compartidos con Event Ops" : undefined}
-                  className={cn(
-                    "group flex items-center gap-2.5 rounded-full px-3 py-[7px] text-[13.5px] transition-colors",
-                    on ? "bg-mint font-semibold text-emerald" : "text-muted hover:bg-white hover:text-ink",
-                  )}
+      <nav className="flex flex-col gap-1">
+        {groups.map((g, gi) => {
+          const hasActive = g.items.some((i) => isActive(i.href));
+          const isOpen = !g.label || hasActive || !!open[g.label];
+          const pending = g.items.reduce((n, i) => n + (i.count ?? 0), 0);
+          return (
+            <div key={gi} className={cn("flex flex-col gap-0.5", !g.label && "mt-3")}>
+              {g.label && (
+                <button
+                  type="button"
+                  onClick={() => !hasActive && toggle(g.label, isOpen)}
+                  aria-expanded={isOpen}
+                  title={hasActive ? "Aquí está la página abierta" : isOpen ? "Ocultar sección" : "Mostrar sección"}
+                  className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-left hover:bg-white", hasActive && "cursor-default hover:bg-transparent")}
                 >
-                  <Icon className="h-4 w-4 shrink-0" strokeWidth={1.6} />
-                  <span className="flex-1">{label}</span>
-                  {shared && <Link2 className="h-3.5 w-3.5 text-faint" strokeWidth={1.6} />}
-                  {!!count && (
-                    <span className={cn("rounded-full px-1.5 text-[10px] font-bold", on ? "bg-white text-emerald" : "bg-[#ECEAE2] text-muted")}>{count}</span>
+                  <span className="label flex-1">{g.label}</span>
+                  {!isOpen && pending > 0 && (
+                    <span className="rounded-full bg-[#ECEAE2] px-1.5 text-[10px] font-bold text-muted">{pending}</span>
                   )}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+                  <ChevronDown className={cn("h-3.5 w-3.5 text-faint transition-transform", !isOpen && "-rotate-90")} strokeWidth={1.8} />
+                </button>
+              )}
+              {isOpen && g.items.map(({ href, label, icon: Icon, shared, count }) => {
+                const on = isActive(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    aria-current={on ? "page" : undefined}
+                    title={shared ? "Datos compartidos con Event Ops" : undefined}
+                    className={cn(
+                      "group flex items-center gap-2.5 rounded-full px-3 py-[7px] text-[13.5px] transition-colors",
+                      on ? "bg-mint font-semibold text-emerald" : "text-muted hover:bg-white hover:text-ink",
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.6} />
+                    <span className="flex-1">{label}</span>
+                    {shared && <Link2 className="h-3.5 w-3.5 text-faint" strokeWidth={1.6} />}
+                    {!!count && (
+                      <span className={cn("rounded-full px-1.5 text-[10px] font-bold", on ? "bg-white text-emerald" : "bg-[#ECEAE2] text-muted")}>{count}</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
-      <div className="mt-auto flex items-center gap-2.5 rounded-2xl border border-line bg-white px-3 py-2.5">
+      <a
+        href={GUIDE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Cómo usar Ziora Ops: qué registrar, dónde y cuándo"
+        className="mt-auto mb-3 flex items-center gap-2.5 rounded-full px-3 py-[7px] text-[13.5px] text-muted transition-colors hover:bg-white hover:text-ink"
+      >
+        <BookOpen className="h-4 w-4 shrink-0" strokeWidth={1.6} />
+        <span className="flex-1">Guía de uso</span>
+        <span className="text-[11px] text-faint" aria-hidden>↗</span>
+      </a>
+      <div className="flex items-center gap-2.5 rounded-2xl border border-line bg-white px-3 py-2.5">
         <Avatar name={user.name} size={30} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{user.name}</p>

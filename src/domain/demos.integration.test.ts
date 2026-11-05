@@ -30,3 +30,25 @@ describe.runIf(enabled)("demos desde el calendario", () => {
     expect((await db.select().from(demoRequests).where(eq(demoRequests.externalId, id))).length).toBe(1);
   });
 });
+
+describe.runIf(enabled)("demos que avisa la app", () => {
+  it("crea, ignora duplicados, reagenda, cancela y reactiva por id", async () => {
+    const { db } = await import("@/db");
+    const { demoRequests } = await import("@/db/schema");
+    const { applyWebhookDemo } = await import("./demos");
+    const id = `app:test-${Date.now()}`;
+    const base = { externalId: id, fullName: "Psic. App Prueba", email: `app${Date.now()}@example.com`, source: "ziora-copilot.com/demo", scheduledAt: new Date("2026-11-06T17:00:00Z"), utm: { utm_campaign: "demo-psicologos-gdl" } };
+
+    expect((await applyWebhookDemo(db, base)).result).toBe("created");
+    expect((await applyWebhookDemo(db, base)).result).toBe("duplicate");
+    expect((await applyWebhookDemo(db, { ...base, status: "rescheduled", scheduledAt: new Date("2026-11-07T18:00:00Z") })).result).toBe("rescheduled");
+    expect((await applyWebhookDemo(db, { ...base, status: "cancelled" })).result).toBe("cancelled");
+    let [d] = await db.select().from(demoRequests).where(eq(demoRequests.externalId, id));
+    expect(d.stage).toBe("lost");
+    expect((await applyWebhookDemo(db, { ...base, status: "rescheduled", scheduledAt: new Date("2026-11-08T18:00:00Z") })).result).toBe("rescheduled");
+    [d] = await db.select().from(demoRequests).where(eq(demoRequests.externalId, id));
+    expect(d.stage).toBe("scheduled");
+    expect(d.utm).toEqual({ utm_campaign: "demo-psicologos-gdl" });
+    expect((await applyWebhookDemo(db, { ...base, externalId: `${id}-x`, status: "cancelled" })).result).toBe("skipped");
+  });
+});
