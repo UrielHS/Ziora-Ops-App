@@ -17,6 +17,18 @@ import { requirePagePermission } from "@/lib/session";
 export const dynamic = "force-dynamic";
 const PAGE = 100;
 
+// Estados de la suscripción (Stripe) en español; lo desconocido se muestra tal cual.
+const STATUS_LABELS: Record<string, string> = {
+  active: "Activa", trialing: "En prueba", past_due: "Pago atrasado", unpaid: "Sin pagar",
+  incomplete: "Pago incompleto", incomplete_expired: "Pago vencido", canceled: "Cancelada", cancelled: "Cancelada", free: "Gratis",
+};
+const statusLabel = (s: string) => STATUS_LABELS[s.toLowerCase()] ?? s;
+function statusTone(s: string, active: boolean) {
+  if (/cancel|expired/i.test(s)) return "red" as const;
+  if (/past_due|unpaid|incomplete|trial/i.test(s)) return "amber" as const;
+  return active ? "green" as const : "gray" as const;
+}
+
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string; plan?: string; estado?: string; p?: string }> }) {
   const sp = await searchParams;
   const access = await requirePagePermission("customers.view");
@@ -150,7 +162,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
                   <tr key={u.uid} className="border-b border-[#EFEDE6] last:border-b-0">
                     <td className="px-5 py-2.5"><span className="block font-semibold">{u.name ?? "—"}</span><span className="block text-xs text-muted">{u.email}</span></td>
                     <td className="px-2">{prices.find((p) => p.plan === u.plan)?.label ?? u.plan}</td>
-                    <td className="px-2">{u.removedAt ? <Badge tone="gray">Baja</Badge> : <Badge tone={/cancel/i.test(u.status) ? "red" : /trial/i.test(u.status) ? "amber" : act ? "green" : "gray"}>{u.status}{!act && !/cancel/i.test(u.status) ? " · inactivo" : ""}</Badge>}</td>
+                    <td className="px-2">{u.removedAt ? <Badge tone="gray">Baja</Badge> : <Badge tone={statusTone(u.status, act)}>{statusLabel(u.status)}{u.cancelAtPeriodEnd && !/cancel/i.test(u.status) ? " · cancela al cierre" : ""}{!act && !/cancel/i.test(u.status) ? " · inactivo" : ""}</Badge>}</td>
                     <td className="px-2 text-muted">{u.lastActiveAt ? relative(u.lastActiveAt) : "Nunca"}</td>
                     <td className="px-2 text-right font-semibold">{u.patientCount}</td>
                     <td className="px-2 text-right">{u.sessionsLast30d}</td>

@@ -73,6 +73,8 @@ describe("MRR real de Stripe", () => {
     ];
     expect(estimatedMrr(users, prices)).toBe(500 + 590 + 590);
     expect(isPaying(users[2], prices)).toBe(false);
+    expect(isPaying({ plan: "pro", status: "unpaid", mrrCents: 59000, currency: "mxn" }, prices)).toBe(false);
+    expect(isPaying({ plan: "pro", status: "incomplete", mrrCents: 59000, currency: "mxn" }, prices)).toBe(false);
     expect(isPaying({ plan: "free", status: "active", mrrCents: 10000, currency: "mxn" }, prices)).toBe(true);
   });
 });
