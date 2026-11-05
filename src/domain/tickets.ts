@@ -61,7 +61,7 @@ export type HelpRequest = {
 
 /** Mensaje de "Ayuda y sugerencias" de la app. Idempotente por externalId. */
 export async function ingestHelpRequest(db: Db, h: HelpRequest) {
-  const kind: Ticket["kind"] = /error|falla|bug|problema/i.test(h.category ?? "") ? "bug" : /idea|sugerencia|mejora/i.test(h.category ?? "") ? "feature" : "change";
+  const kind: Ticket["kind"] = /error|falla|bug|problema/i.test(h.category ?? "") ? "bug" : /idea|sugerencia|suggestion|feature|mejora/i.test(h.category ?? "") ? "feature" : "change";
   const title = (h.subject?.trim() || h.message.trim().split("\n")[0]).slice(0, 140);
   const [row] = await db
     .insert(tickets)

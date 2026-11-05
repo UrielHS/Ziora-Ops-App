@@ -75,6 +75,8 @@ describe("MRR real de Stripe", () => {
     expect(isPaying(users[2], prices)).toBe(false);
     expect(isPaying({ plan: "pro", status: "unpaid", mrrCents: 59000, currency: "mxn" }, prices)).toBe(false);
     expect(isPaying({ plan: "pro", status: "incomplete", mrrCents: 59000, currency: "mxn" }, prices)).toBe(false);
+    // Pro otorgado a mano: sin suscripción en Stripe (status "free", mrrAmount null) no es de pago
+    expect(isPaying({ plan: "pro", status: "free", mrrCents: null, currency: null }, prices)).toBe(false);
     expect(isPaying({ plan: "free", status: "active", mrrCents: 10000, currency: "mxn" }, prices)).toBe(true);
   });
 });

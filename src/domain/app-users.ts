@@ -45,8 +45,9 @@ type Price = { plan: string; priceMxn: number; billingPeriod: BillingPeriod; pay
 type Billing = { mrrCents?: number | null; currency?: string | null };
 type UserLike = { plan: string; status: string; lastActiveAt: Date | null; patientCount: number; removedAt?: Date | null } & Billing;
 
-// No cuentan como de pago: cancelada, inactiva o con pago fallido (Stripe: unpaid, incomplete, incomplete_expired).
-const CANCELLED = /cancel|inactive|deleted|expired|unpaid|incomplete/i;
+// No cuentan como de pago: cancelada, inactiva, con pago fallido (Stripe: unpaid, incomplete, incomplete_expired)
+// o sin suscripción ("free", aunque el plan sea Pro otorgado a mano).
+const CANCELLED = /cancel|inactive|deleted|expired|unpaid|incomplete|^free$/i;
 
 /** MRR real en pesos que mandó la app (Stripe), o null si no lo mandó o viene en otra moneda. */
 export function realMrr(u: Billing): number | null {

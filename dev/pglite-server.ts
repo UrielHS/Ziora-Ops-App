@@ -12,7 +12,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 
 async function main() {
-  const dataDir = join(__dirname, ".pglite");
+  const dataDir = process.env.PGLITE_DIR ?? join(__dirname, ".pglite"); // PGLITE_DIR: otra carpeta (p. ej. una base limpia para pruebas)
   const fresh = !existsSync(dataDir);
   const db = await PGlite.create(dataDir);
   if (fresh) {
