@@ -94,6 +94,10 @@ export async function applyCalendarDemo(db: Db, ev: ParsedDemoEvent): Promise<ke
   return "skipped";
 }
 
+/** Dominio del equipo: las demos con estos correos son pruebas internas y no entran al pipeline. */
+export const TEAM_EMAIL_DOMAIN = "ziora-copilot.com";
+export const isTeamEmail = (email: string) => email.trim().toLowerCase().endsWith(`@${TEAM_EMAIL_DOMAIN}`);
+
 export type WebhookDemoResult = "created" | "rescheduled" | "cancelled" | "duplicate" | "skipped";
 const CANCELLED_BY_LEAD = ["Canceló en el calendario", "Canceló la demo"];
 

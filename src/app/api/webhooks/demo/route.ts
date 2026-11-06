@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { applyWebhookDemo } from "@/domain/demos";
+import { applyWebhookDemo, isTeamEmail } from "@/domain/demos";
 import { verifyHmac } from "@/lib/crypto";
 import { requireEnv } from "@/lib/env";
 
@@ -39,6 +39,8 @@ export async function POST(req: Request) {
   const parsed = Payload.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
   const p = parsed.data;
+  // Pruebas del equipo (correo @ziora-copilot.com): se responden como "skipped" para que la app no reintente.
+  if (isTeamEmail(p.email)) return NextResponse.json({ ok: true, result: "skipped", demoId: null, reason: "correo del equipo" });
 
   const r = await applyWebhookDemo(db, {
     externalId: p.id, fullName: p.fullName, email: p.email, whatsapp: p.whatsapp, patientsPerWeek: p.patientsPerWeek,
