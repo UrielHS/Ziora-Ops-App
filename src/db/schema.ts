@@ -555,6 +555,9 @@ export const appUsers = ops.table(
     firstSyncedAt: timestamp("first_synced_at", { withTimezone: true }).notNull().defaultNow(),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
     removedAt: timestamp("removed_at", { withTimezone: true }), // ya no viene en el snapshot (cuenta borrada)
+    // Cuenta de prueba o interna (la marca el equipo en Usuarios de Ziora): no se muestra ni cuenta en métricas,
+    // MRR ni seguimientos. La sincronización nunca la cambia.
+    isTest: boolean("is_test").notNull().default(false),
   },
   (t) => [index("app_users_plan_idx").on(t.plan), uniqueIndex("app_users_email_unique").on(t.email)],
 );

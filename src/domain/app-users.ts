@@ -110,6 +110,11 @@ export function followupCandidates<T extends UserLike & { trialEndsAt: Date | nu
 const mxDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(d);
 
 /** Aplica un snapshot completo: upsert, marca bajas y guarda la foto diaria por plan. */
+/** Marca o desmarca una cuenta como de prueba. Se conserva entre sincronizaciones. */
+export async function setAppUserTest(db: Db, uid: string, isTest: boolean) {
+  await db.update(appUsers).set({ isTest }).where(eq(appUsers.uid, uid));
+}
+
 export async function applySnapshot(db: Db, snap: Snapshot, now = new Date()) {
   const toDate = (s?: string | null) => (s ? new Date(s) : null);
   const rows = snap.users.map((u) => ({
@@ -143,7 +148,7 @@ export async function applySnapshot(db: Db, snap: Snapshot, now = new Date()) {
   });
 
   const prices = await db.select().from(planPrices);
-  const current = await db.select().from(appUsers).where(isNull(appUsers.removedAt));
+  const current = await db.select().from(appUsers).where(and(isNull(appUsers.removedAt), eq(appUsers.isTest, false)));
   const day = mxDay(now);
   const summary = summarizeByPlan(current, prices, now);
   for (const s of summary) {

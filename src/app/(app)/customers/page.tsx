@@ -2,6 +2,7 @@ import Link from "next/link";
 import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { Activity, CircleDollarSign, HeartPulse, Users } from "lucide-react";
 import { savePlanPrice } from "@/actions/followups";
+import { markAppUserTest } from "@/actions/app-users";
 import { NewFollowupButton } from "@/components/followups";
 import { Badge, btn, Card, cn, Empty, Field, inputCls, Kpi, PageHeader, PanelHeader, Select } from "@/components/ui";
 import { ActionForm, Modal, Submit } from "@/components/ui/form";
@@ -39,15 +40,17 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   const page = Math.max(0, Number(sp.p ?? 0) || 0);
 
   const where: SQL[] = [];
+  // Las cuentas de prueba solo se ven al pedirlas; en todo lo demás no existen.
+  where.push(eq(appUsers.isTest, sp.estado === "prueba"));
   if (sp.estado === "baja") where.push(isNotNull(appUsers.removedAt));
-  else where.push(isNull(appUsers.removedAt));
+  else if (sp.estado !== "prueba") where.push(isNull(appUsers.removedAt));
   if (sp.estado === "activo") where.push(gte(appUsers.lastActiveAt, activeSince));
   if (sp.estado === "inactivo") where.push(or(lt(appUsers.lastActiveAt, activeSince), isNull(appUsers.lastActiveAt))!);
   if (sp.plan) where.push(eq(appUsers.plan, sp.plan));
   if (sp.q) where.push(or(ilike(appUsers.email, `%${sp.q}%`), ilike(appUsers.name, `%${sp.q}%`))!);
 
   const [users, team, prices, rows, [{ total }], trend, [lastSync], lastHealth] = await Promise.all([
-    db.select().from(appUsers).where(isNull(appUsers.removedAt)),
+    db.select().from(appUsers).where(and(isNull(appUsers.removedAt), eq(appUsers.isTest, false))),
     listUsers(),
     db.select().from(planPrices).orderBy(asc(planPrices.plan)),
     db.select().from(appUsers).where(and(...where)).orderBy(desc(appUsers.lastActiveAt)).limit(PAGE).offset(page * PAGE),
@@ -143,7 +146,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
         <form action="/customers" className="flex flex-wrap items-center gap-2 px-5 pt-5">
           <input name="q" defaultValue={sp.q} placeholder="Buscar por correo o nombre" className={cn(inputCls, "max-w-xs rounded-full")} />
           {sp.plan && <input type="hidden" name="plan" value={sp.plan} />}
-          <Select name="estado" defaultValue={sp.estado} placeholder="Todos" className="w-36" options={[["activo", "Activos"], ["inactivo", "Inactivos"], ["baja", "Dados de baja"]]} />
+          <Select name="estado" defaultValue={sp.estado} placeholder="Todos" className="w-36" options={[["activo", "Activos"], ["inactivo", "Inactivos"], ["baja", "Dados de baja"], ["prueba", "Cuentas de prueba"]]} />
           <button className={btn("ghost", "sm")}>Filtrar</button>
           <span className="ml-auto text-xs text-faint">{total} usuarios</span>
         </form>
@@ -167,7 +170,16 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
                     <td className="px-2 text-right font-semibold">{u.patientCount}</td>
                     <td className="px-2 text-right">{u.sessionsLast30d}</td>
                     <td className="px-2">{health ? <Badge tone={HEALTH[health].tone}>{HEALTH[health].label}</Badge> : <span className="text-faint">—</span>}</td>
-                    <td className="px-5 text-right">{canFollow && !u.removedAt && <NewFollowupButton users={team} appUserUid={u.uid} appUserLabel={u.name ?? u.email} trigger="Seguimiento" triggerClass={btn("ghost", "sm")} />}</td>
+                    <td className="px-5 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {canFollow && !u.removedAt && !u.isTest && <NewFollowupButton users={team} appUserUid={u.uid} appUserLabel={u.name ?? u.email} trigger="Seguimiento" triggerClass={btn("ghost", "sm")} />}
+                        <ActionForm action={markAppUserTest} className="inline">
+                          <input type="hidden" name="uid" value={u.uid} />
+                          <input type="hidden" name="isTest" value={u.isTest ? "0" : "1"} />
+                          <Submit variant="ghost" className="!px-2 !py-1 text-xs">{u.isTest ? "No es de prueba" : "Es de prueba"}</Submit>
+                        </ActionForm>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}

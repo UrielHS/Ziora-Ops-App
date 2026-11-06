@@ -70,7 +70,7 @@ export async function MyDay({ access }: { access: SessionAccess }) {
 
   if (has("operations", "ceo") && can(access, "customers.view")) {
     const [[inactive]] = await Promise.all([
-      db.select({ n: count() }).from(appUsers).where(and(isNull(appUsers.removedAt), lte(appUsers.lastActiveAt, new Date(now.getTime() - 14 * 86400000)))),
+      db.select({ n: count() }).from(appUsers).where(and(isNull(appUsers.removedAt), eq(appUsers.isTest, false), lte(appUsers.lastActiveAt, new Date(now.getTime() - 14 * 86400000)))),
     ]);
     items.push({ label: "Usuarios de Ziora inactivos (14 días)", n: inactive.n, href: "/customers?estado=inactivo" });
   }
