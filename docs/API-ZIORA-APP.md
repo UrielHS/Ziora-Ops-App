@@ -240,6 +240,7 @@ X-Ziora-Signature: <hex(HMAC-SHA256(OPS_DEMO_WEBHOOK_SECRET, cuerpo))>
 | Mismo id con otra `scheduledAt` | Reagenda. Si estaba cancelada, la regresa a Agendada |
 | Mismo id con `status: "cancelled"` | La marca perdida ("Canceló la demo") si seguía abierta. Si ya se realizó o pagó, no la toca |
 | Mismo id sin cambios | No hace nada (`duplicate`) |
+| Correo `@ziora-copilot.com` (pruebas del equipo) | No entra al pipeline; responde `200` con `skipped` para que no se reintente |
 
 ### UTM
 
